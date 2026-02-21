@@ -3,7 +3,7 @@
 ## Current
 - [x] Initialize local Git repository (`main` branch).
 - [x] Create GitHub repository and add `origin` remote.
-- [ ] Push `main` to GitHub.
+- [x] Push `main` to GitHub.
 - [ ] Commit and push at least once per day.
 - [ ] Create milestone tags at key checkpoints.
 - [ ] If/when a second top-level folder is added, create and save a VS Code workspace.
