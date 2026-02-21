@@ -123,7 +123,7 @@ git switch -c restore/milestone-08 milestone-08-live-polling
 
 ### milestone-09-polling-fix
 - Date: 2026-02-21
-- Commit: `TBD`
+- Commit: `e611fc2`
 - What was done:
   - Fixed auto-refresh reliability so live updates do not silently stop.
   - Removed unnecessary polling restarts during summary refreshes.
