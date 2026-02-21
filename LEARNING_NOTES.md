@@ -69,3 +69,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Each milestone needs a short plain-language summary of what changed."
 - Terms to re-teach: milestone tag, rollback target.
 - Preferred pace/format: concise milestone log with one-line purpose.
+- Date: 2026-02-21
+- Topic: Scope vs future flexibility
+- What was unclear: Whether full end-product scope must be planned now to avoid architecture dead-ends.
+- Simpler wording to use next time: "Plan full direction now, build MVP now, keep architecture extension-ready."
+- Terms to re-teach: full scope, architecture constraints, extensibility.
+- Preferred pace/format: direct risk answer + concrete safeguard steps.
