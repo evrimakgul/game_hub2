@@ -1,58 +1,39 @@
 const state = {
   token: null,
   user: null,
-  campaignId: null,
-  campaignName: null,
-  campaignState: null,
-  campaignRole: null,
-  lastEventTimestamp: null,
-  lastChatTimestamp: null,
+  currentPage: "connection",
+  selectedCampaignId: null,
+  selectedCampaignName: null,
+  selectedCampaignState: null,
+  selectedCampaignRole: null,
   pollTimerId: null,
+  pollPrefix: null,
   pollInFlight: false,
   pollIntervalMs: 2000
 };
 
+function el(id) {
+  return document.getElementById(id);
+}
+
+function expectedRole(prefix) {
+  return prefix === "master" ? "GM" : "PLAYER";
+}
+
 function setStatus(message, payload) {
-  const status = document.querySelector("#status");
-  status.textContent = payload
+  const node = el("status");
+  node.textContent = payload
     ? `${message}\n${JSON.stringify(payload, null, 2)}`
     : message;
 }
 
-async function api(path, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {})
-  };
-
-  if (state.token) {
-    headers.Authorization = `Bearer ${state.token}`;
+function setWelcomeUser() {
+  const node = el("welcome-user");
+  if (!state.user) {
+    node.textContent = "";
+    return;
   }
-
-  const response = await fetch(path, {
-    ...options,
-    headers
-  });
-
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.error || `Request failed (${response.status})`);
-  }
-  return body;
-}
-
-function getCampaignIdOrFail() {
-  if (!state.campaignId) {
-    throw new Error("Select a campaign first.");
-  }
-  return state.campaignId;
-}
-
-function numberOrUndefined(value) {
-  if (value === "" || value === undefined || value === null) {
-    return undefined;
-  }
-  return Number(value);
+  node.textContent = `Logged in as ${state.user.displayName} (${state.user.email})`;
 }
 
 function formatDate(iso) {
@@ -66,22 +47,44 @@ function formatDate(iso) {
   return date.toLocaleString();
 }
 
-function renderCampaignState() {
-  const node = document.querySelector("#campaign-state");
+function getActivePrefix() {
+  if (state.currentPage === "player" || state.currentPage === "master") {
+    return state.currentPage;
+  }
+  return null;
+}
+
+function hasValidSelectionFor(prefix) {
+  return (
+    Boolean(state.selectedCampaignId) &&
+    state.selectedCampaignRole === expectedRole(prefix)
+  );
+}
+
+function clearCampaignSelection() {
+  state.selectedCampaignId = null;
+  state.selectedCampaignName = null;
+  state.selectedCampaignState = null;
+  state.selectedCampaignRole = null;
+}
+
+function renderCampaignState(prefix) {
+  const node = el(`${prefix}-campaign-state`);
   if (!node) {
     return;
   }
-  if (!state.campaignId) {
+  if (!hasValidSelectionFor(prefix)) {
     node.textContent = "No campaign selected.";
     return;
   }
-  node.textContent = `Selected: ${state.campaignName || state.campaignId} | Role: ${
-    state.campaignRole || "unknown"
-  } | Session: ${state.campaignState || "unknown"}`;
+  node.textContent =
+    `Selected: ${state.selectedCampaignName} | ` +
+    `Role: ${state.selectedCampaignRole} | ` +
+    `Session: ${state.selectedCampaignState || "unknown"}`;
 }
 
-function renderAutoRefreshState() {
-  const node = document.querySelector("#auto-refresh-state");
+function renderAutoRefreshState(prefix) {
+  const node = el(`${prefix}-auto-refresh-state`);
   if (!node) {
     return;
   }
@@ -89,31 +92,122 @@ function renderAutoRefreshState() {
     node.textContent = "Auto-refresh: off (login first).";
     return;
   }
-  if (!state.campaignId) {
-    node.textContent = "Auto-refresh: off (select campaign first).";
+  if (!hasValidSelectionFor(prefix)) {
+    node.textContent = "Auto-refresh: off (select a campaign first).";
     return;
   }
-  if (state.pollTimerId) {
+  if (state.pollTimerId && state.pollPrefix === prefix) {
     node.textContent = `Auto-refresh: on (${state.pollIntervalMs / 1000}s for events/chat).`;
     return;
   }
   node.textContent = "Auto-refresh: off.";
 }
 
-async function pollRealtimeSilently() {
-  if (!state.token || !state.campaignId || state.pollInFlight) {
-    return;
+function renderRoleStates() {
+  renderCampaignState("player");
+  renderCampaignState("master");
+  renderAutoRefreshState("player");
+  renderAutoRefreshState("master");
+}
+
+function showPage(pageName) {
+  for (const page of document.querySelectorAll(".page")) {
+    page.classList.toggle("page--active", page.dataset.page === pageName);
+  }
+  state.currentPage = pageName;
+  ensureRealtimePolling();
+  renderRoleStates();
+}
+
+function clearRoleOutputs(prefix) {
+  const summary = el(`${prefix}-summary-output`);
+  const members = el(`${prefix}-members-output`);
+  const invites = el(`${prefix}-invites-output`);
+  const events = el(`${prefix}-events-output`);
+  const chat = el(`${prefix}-chat-output`);
+  const inviteOut = el(`${prefix}-invite-output`);
+  const chars = el(`${prefix}-character-output`);
+  if (summary) summary.textContent = "";
+  if (members) members.innerHTML = "";
+  if (invites) invites.innerHTML = "";
+  if (events) events.textContent = "";
+  if (chat) chat.textContent = "";
+  if (inviteOut) inviteOut.textContent = "";
+  if (chars) chars.textContent = "";
+}
+
+function signOut() {
+  state.token = null;
+  state.user = null;
+  clearCampaignSelection();
+  stopRealtimePolling();
+  setWelcomeUser();
+  clearRoleOutputs("player");
+  clearRoleOutputs("master");
+  renderRoleStates();
+  showPage("connection");
+  setStatus("Logged out.");
+}
+
+async function api(path, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+  if (state.token) {
+    headers.Authorization = `Bearer ${state.token}`;
   }
 
-  state.pollInFlight = true;
-  try {
-    await loadEvents();
-    await loadChatMessages();
-  } catch {
-    // Ignore transient poll errors; manual actions still show errors.
-  } finally {
-    state.pollInFlight = false;
+  const response = await fetch(path, { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || `Request failed (${response.status})`);
   }
+  return body;
+}
+
+function currentCampaignId(prefix) {
+  if (!hasValidSelectionFor(prefix)) {
+    throw new Error("Select a campaign first.");
+  }
+  return state.selectedCampaignId;
+}
+
+function eventQueryPath(prefix) {
+  const campaignId = currentCampaignId(prefix);
+  const params = new URLSearchParams();
+  const type = String(el(`${prefix}-event-type-filter`)?.value || "").trim();
+  const limit = String(el(`${prefix}-event-limit`)?.value || "50").trim();
+  if (type) params.set("type", type);
+  if (limit) params.set("limit", limit);
+  return `/api/v1/campaigns/${campaignId}/events?${params.toString()}`;
+}
+
+function chatQueryPath(prefix) {
+  const campaignId = currentCampaignId(prefix);
+  const params = new URLSearchParams();
+  const visibility = String(el(`${prefix}-chat-visibility-filter`)?.value || "").trim();
+  const limit = String(el(`${prefix}-chat-limit`)?.value || "50").trim();
+  if (visibility) params.set("visibility", visibility);
+  if (limit) params.set("limit", limit);
+  return `/api/v1/campaigns/${campaignId}/chat/messages?${params.toString()}`;
+}
+
+function formatEvent(entry) {
+  return `[${formatDate(entry.createdAt)}] ${entry.type} by ${
+    entry.actorUserId
+  } -> ${JSON.stringify(entry.payload || {})}`;
+}
+
+function formatChat(entry) {
+  if (entry.visibility === "PRIVATE") {
+    const recipients =
+      entry.recipientNames?.length > 0
+        ? entry.recipientNames.join(", ")
+        : entry.recipientUserIds.join(", ");
+    return `[${formatDate(entry.createdAt)}] [PRIVATE] ${entry.senderDisplayName} -> ${recipients}: ${entry.text}`;
+  }
+  return `[${formatDate(entry.createdAt)}] [PUBLIC] ${entry.senderDisplayName}: ${entry.text}`;
 }
 
 function stopRealtimePolling() {
@@ -121,160 +215,127 @@ function stopRealtimePolling() {
     clearInterval(state.pollTimerId);
     state.pollTimerId = null;
   }
-  renderAutoRefreshState();
+  state.pollPrefix = null;
+  renderRoleStates();
+}
+
+async function pollRealtimeSilently() {
+  if (state.pollInFlight || !state.pollPrefix) {
+    return;
+  }
+  state.pollInFlight = true;
+  try {
+    await Promise.all([
+      loadEvents(state.pollPrefix, true),
+      loadChatMessages(state.pollPrefix, true)
+    ]);
+  } catch {
+    // Keep polling alive on transient failures.
+  } finally {
+    state.pollInFlight = false;
+  }
 }
 
 function ensureRealtimePolling() {
-  if (!state.token || !state.campaignId) {
+  const prefix = getActivePrefix();
+  if (!prefix || !state.token || !hasValidSelectionFor(prefix)) {
     stopRealtimePolling();
     return;
   }
-  if (state.pollTimerId) {
-    renderAutoRefreshState();
+  if (state.pollTimerId && state.pollPrefix === prefix) {
+    renderRoleStates();
     return;
   }
-
-  state.pollTimerId = setInterval(() => {
-    pollRealtimeSilently();
-  }, state.pollIntervalMs);
-
-  renderAutoRefreshState();
+  stopRealtimePolling();
+  state.pollPrefix = prefix;
+  state.pollTimerId = setInterval(pollRealtimeSilently, state.pollIntervalMs);
+  renderRoleStates();
   pollRealtimeSilently();
 }
 
-function clearCampaignDashboard() {
-  const summary = document.querySelector("#campaign-summary-output");
-  const members = document.querySelector("#campaign-members");
-  const invites = document.querySelector("#campaign-invites");
-  const events = document.querySelector("#event-output");
-  const chat = document.querySelector("#chat-output");
-  if (summary) summary.textContent = "";
-  if (members) members.innerHTML = "";
-  if (invites) invites.innerHTML = "";
-  if (events) events.textContent = "";
-  if (chat) chat.textContent = "";
-  state.lastEventTimestamp = null;
-  state.lastChatTimestamp = null;
-  stopRealtimePolling();
-}
+async function loadCampaigns(prefix) {
+  const result = await api("/api/v1/campaigns");
+  const targetRole = expectedRole(prefix);
+  const campaigns = result.campaigns.filter((entry) => entry.role === targetRole);
+  const list = el(`${prefix}-campaign-list`);
+  list.innerHTML = "";
 
-function renderMemberList(members = []) {
-  const node = document.querySelector("#campaign-members");
-  node.innerHTML = "";
-
-  if (members.length === 0) {
-    node.innerHTML = "<li>No members yet.</li>";
+  if (campaigns.length === 0) {
+    list.innerHTML = `<li>No ${prefix} campaigns found.</li>`;
     return;
   }
 
-  for (const member of members) {
+  for (const campaign of campaigns) {
     const item = document.createElement("li");
-    const emailText = member.email ? ` | ${member.email}` : "";
-    item.textContent =
-      `${member.displayName} (${member.role})` +
-      `${emailText} | userId: ${member.userId}`;
-    node.appendChild(item);
-  }
-}
-
-function renderInviteList(invites = [], pendingInvitesCount = 0) {
-  const node = document.querySelector("#campaign-invites");
-  node.innerHTML = "";
-
-  if (state.campaignRole !== "GM") {
-    node.innerHTML = `<li>Hidden for player role. Pending count: ${pendingInvitesCount}</li>`;
-    return;
-  }
-
-  if (invites.length === 0) {
-    node.innerHTML = "<li>No pending invites.</li>";
-    return;
-  }
-
-  for (const invite of invites) {
-    const item = document.createElement("li");
-    item.textContent = `${invite.email} | token: ${invite.token} | expires: ${formatDate(
-      invite.expiresAt
-    )}`;
-    node.appendChild(item);
+    const button = document.createElement("button");
+    button.textContent = `${campaign.name} | session: ${campaign.sessionState}`;
+    button.type = "button";
+    button.addEventListener("click", async () => {
+      try {
+        setSelectedCampaign(campaign);
+        await refreshRoleData(prefix);
+        setStatus(`Selected ${prefix} campaign: ${campaign.name}`);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+    item.appendChild(button);
+    list.appendChild(item);
   }
 }
 
 function setSelectedCampaign(campaign) {
-  const previousCampaignId = state.campaignId;
-  state.campaignId = campaign.id;
-  state.campaignName = campaign.name;
-  state.campaignState = campaign.sessionState || "idle";
-  state.campaignRole = campaign.role || state.campaignRole;
-  if (previousCampaignId !== state.campaignId) {
-    state.lastEventTimestamp = null;
-    state.lastChatTimestamp = null;
-  }
-  renderCampaignState();
+  state.selectedCampaignId = campaign.id;
+  state.selectedCampaignName = campaign.name;
+  state.selectedCampaignState = campaign.sessionState || "idle";
+  state.selectedCampaignRole = campaign.role;
+  renderRoleStates();
   ensureRealtimePolling();
 }
 
-function eventQueryPath() {
-  const campaignId = getCampaignIdOrFail();
-  const params = new URLSearchParams();
-  const type = String(document.querySelector("#event-type-filter").value || "").trim();
-  const limit = String(document.querySelector("#event-limit").value || "50").trim();
-
-  if (type) {
-    params.set("type", type);
+function renderMembers(prefix, members) {
+  const node = el(`${prefix}-members-output`);
+  if (!node) return;
+  node.innerHTML = "";
+  if (!members || members.length === 0) {
+    node.innerHTML = "<li>No members.</li>";
+    return;
   }
-  if (limit) {
-    params.set("limit", limit);
+  for (const member of members) {
+    const item = document.createElement("li");
+    const email = member.email ? ` | ${member.email}` : "";
+    item.textContent = `${member.displayName} (${member.role})${email} | userId: ${member.userId}`;
+    node.appendChild(item);
   }
-  return `/api/v1/campaigns/${campaignId}/events?${params.toString()}`;
 }
 
-function formatEvent(event) {
-  const actor = event.actorUserId || "unknown-user";
-  const created = formatDate(event.createdAt);
-  const payload = event.payload ? JSON.stringify(event.payload) : "{}";
-  return `[${created}] ${event.type} by ${actor} -> ${payload}`;
+function renderInvites(prefix, pendingInvites = [], pendingCount = 0) {
+  const node = el(`${prefix}-invites-output`);
+  if (!node) return;
+  node.innerHTML = "";
+  if (prefix !== "master") {
+    return;
+  }
+  if (pendingInvites.length === 0) {
+    node.innerHTML = `<li>No pending invites. Count: ${pendingCount}</li>`;
+    return;
+  }
+  for (const invite of pendingInvites) {
+    const item = document.createElement("li");
+    item.textContent = `${invite.email} | token: ${invite.token} | expires: ${formatDate(invite.expiresAt)}`;
+    node.appendChild(item);
+  }
 }
 
-function chatQueryPath() {
-  const campaignId = getCampaignIdOrFail();
-  const params = new URLSearchParams();
-  const visibility = String(
-    document.querySelector("#chat-visibility-filter").value || ""
-  ).trim();
-  const limit = String(document.querySelector("#chat-limit").value || "50").trim();
-
-  if (visibility) {
-    params.set("visibility", visibility);
-  }
-  if (limit) {
-    params.set("limit", limit);
-  }
-  return `/api/v1/campaigns/${campaignId}/chat/messages?${params.toString()}`;
-}
-
-function formatChatMessage(message) {
-  const created = formatDate(message.createdAt);
-  const sender = message.senderDisplayName || message.senderUserId || "unknown";
-  if (message.visibility === "PRIVATE") {
-    const recipients = message.recipientNames?.length
-      ? message.recipientNames.join(", ")
-      : message.recipientUserIds.join(", ");
-    return `[${created}] [PRIVATE] ${sender} -> ${recipients}: ${message.text}`;
-  }
-  return `[${created}] [PUBLIC] ${sender}: ${message.text}`;
-}
-
-async function loadCampaignSummary() {
-  const campaignId = getCampaignIdOrFail();
+async function loadSummary(prefix) {
+  const campaignId = currentCampaignId(prefix);
   const summary = await api(`/api/v1/campaigns/${campaignId}/summary`);
+  state.selectedCampaignName = summary.campaign.name;
+  state.selectedCampaignState = summary.campaign.sessionState || state.selectedCampaignState;
+  state.selectedCampaignRole = summary.campaign.role || state.selectedCampaignRole;
+  renderRoleStates();
 
-  state.campaignName = summary.campaign.name;
-  state.campaignState = summary.campaign.sessionState || state.campaignState;
-  state.campaignRole = summary.campaign.role || state.campaignRole;
-  renderCampaignState();
-  ensureRealtimePolling();
-  document.querySelector("#campaign-summary-output").textContent = JSON.stringify(
+  el(`${prefix}-summary-output`).textContent = JSON.stringify(
     {
       campaign: summary.campaign.name,
       role: summary.campaign.role,
@@ -286,332 +347,419 @@ async function loadCampaignSummary() {
     null,
     2
   );
-  renderMemberList(summary.members);
-  renderInviteList(summary.pendingInvites, summary.pendingInvitesCount);
+  renderMembers(prefix, summary.members);
+  renderInvites(prefix, summary.pendingInvites, summary.pendingInvitesCount);
 }
 
-async function loadEvents() {
-  const result = await api(eventQueryPath());
-  const events = result.events || [];
-  const lines = events.length > 0 ? events.map(formatEvent).join("\n") : "No events.";
-  document.querySelector("#event-output").textContent = lines;
-
-  if (events.length > 0) {
-    const last = events[events.length - 1];
-    state.lastEventTimestamp = last.createdAt || state.lastEventTimestamp;
-  }
-}
-
-async function loadChatMessages() {
-  const result = await api(chatQueryPath());
-  const messages = result.messages || [];
+async function loadEvents(prefix, silent = false) {
+  const result = await api(eventQueryPath(prefix));
   const lines =
-    messages.length > 0
-      ? messages.map((message) => formatChatMessage(message)).join("\n")
-      : "No chat messages.";
-  document.querySelector("#chat-output").textContent = lines;
-
-  if (messages.length > 0) {
-    const last = messages[messages.length - 1];
-    state.lastChatTimestamp = last.createdAt || state.lastChatTimestamp;
+    result.events?.length > 0
+      ? result.events.map((entry) => formatEvent(entry)).join("\n")
+      : "No events.";
+  el(`${prefix}-events-output`).textContent = lines;
+  if (!silent) {
+    setStatus("Events refreshed.");
   }
 }
 
-document.querySelector("#register-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
-
-  try {
-    const result = await api("/api/v1/auth/register", {
-      method: "POST",
-      body: JSON.stringify({
-        displayName: form.get("displayName"),
-        email: form.get("email"),
-        password: form.get("password")
-      })
-    });
-
-    state.token = result.token;
-    state.user = result.user;
-    document.querySelector("#auth-state").textContent = `Logged in as ${result.user.displayName}`;
-    ensureRealtimePolling();
-    setStatus("Registered and logged in.");
-  } catch (error) {
-    setStatus(error.message);
+async function loadChatMessages(prefix, silent = false) {
+  const result = await api(chatQueryPath(prefix));
+  const lines =
+    result.messages?.length > 0
+      ? result.messages.map((entry) => formatChat(entry)).join("\n")
+      : "No chat messages.";
+  el(`${prefix}-chat-output`).textContent = lines;
+  if (!silent) {
+    setStatus("Chat refreshed.");
   }
-});
+}
 
-document.querySelector("#login-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
+async function refreshRoleData(prefix) {
+  await loadSummary(prefix);
+  await loadEvents(prefix, true);
+  await loadChatMessages(prefix, true);
+  ensureRealtimePolling();
+}
 
-  try {
-    const result = await api("/api/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        email: form.get("email"),
-        password: form.get("password")
-      })
-    });
+function attachAuthHandlers() {
+  el("go-signup").addEventListener("click", () => {
+    showPage("signup");
+  });
 
-    state.token = result.token;
-    state.user = result.user;
-    document.querySelector("#auth-state").textContent = `Logged in as ${result.user.displayName}`;
-    ensureRealtimePolling();
-    setStatus("Logged in.");
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
+  el("back-to-connection").addEventListener("click", () => {
+    showPage("connection");
+  });
 
-document.querySelector("#campaign-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
+  el("discord-signin").addEventListener("click", () => {
+    setStatus("Discord sign-in is planned, but not wired in this MVP.");
+  });
 
-  try {
-    const result = await api("/api/v1/campaigns", {
-      method: "POST",
-      body: JSON.stringify({ name: form.get("name") })
-    });
-    setSelectedCampaign(result.campaign);
-    await loadCampaignSummary();
-    await loadEvents();
-    await loadChatMessages();
-    setStatus(`Campaign created and selected: ${result.campaign.name}`);
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
-
-document.querySelector("#load-campaigns").addEventListener("click", async () => {
-  try {
-    const result = await api("/api/v1/campaigns");
-    const list = document.querySelector("#campaign-list");
-    list.innerHTML = "";
-
-    for (const campaign of result.campaigns) {
-      const item = document.createElement("li");
-      const button = document.createElement("button");
-      button.textContent = `${campaign.name} (${campaign.role}) | session: ${campaign.sessionState}`;
-      button.addEventListener("click", async () => {
-        try {
-          setSelectedCampaign(campaign);
-          await loadCampaignSummary();
-          await loadEvents();
-          await loadChatMessages();
-          setStatus(`Selected campaign: ${campaign.name}`);
-        } catch (error) {
-          setStatus(error.message);
-        }
-      });
-      item.appendChild(button);
-      list.appendChild(item);
-    }
-
-    if (result.campaigns.length === 0) {
-      list.innerHTML = "<li>No campaigns yet.</li>";
-    }
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
-
-document.querySelector("#refresh-summary").addEventListener("click", async () => {
-  try {
-    await loadCampaignSummary();
-    await loadChatMessages();
-    setStatus("Campaign dashboard refreshed.");
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
-
-document.querySelector("#invite-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
-
-  try {
-    const campaignId = getCampaignIdOrFail();
-    const result = await api(`/api/v1/campaigns/${campaignId}/invites`, {
-      method: "POST",
-      body: JSON.stringify({ email: form.get("email") })
-    });
-    document.querySelector("#invite-output").textContent =
-      `Invite created for ${result.invite.email}\n` +
-      `Token: ${result.invite.token}\n` +
-      `Expires: ${formatDate(result.invite.expiresAt)}`;
-    await loadCampaignSummary();
-    await loadEvents();
-    await loadChatMessages();
-    setStatus("Invite created.");
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
-
-document
-  .querySelector("#accept-invite-form")
-  .addEventListener("submit", async (event) => {
+  el("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.target);
+    try {
+      const result = await api("/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: form.get("email"),
+          password: form.get("password")
+        })
+      });
+      state.token = result.token;
+      state.user = result.user;
+      setWelcomeUser();
+      showPage("welcome");
+      setStatus("Logged in.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
 
+  el("register-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      const result = await api("/api/v1/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          email: form.get("email"),
+          password: form.get("password")
+        })
+      });
+      state.token = result.token;
+      state.user = result.user;
+      setWelcomeUser();
+      showPage("welcome");
+      setStatus("Account created.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
+function attachWelcomeHandlers() {
+  el("enter-player").addEventListener("click", async () => {
+    try {
+      showPage("player");
+      if (!hasValidSelectionFor("player")) {
+        clearCampaignSelection();
+        clearRoleOutputs("player");
+      }
+      await loadCampaigns("player");
+      ensureRealtimePolling();
+      setStatus("Player view opened.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("enter-master").addEventListener("click", async () => {
+    try {
+      showPage("master");
+      if (!hasValidSelectionFor("master")) {
+        clearCampaignSelection();
+        clearRoleOutputs("master");
+      }
+      await loadCampaigns("master");
+      ensureRealtimePolling();
+      setStatus("Master view opened.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("logout-from-welcome").addEventListener("click", signOut);
+}
+
+function attachPlayerHandlers() {
+  el("player-back-welcome").addEventListener("click", () => showPage("welcome"));
+  el("player-logout").addEventListener("click", signOut);
+
+  el("player-load-campaigns").addEventListener("click", async () => {
+    try {
+      await loadCampaigns("player");
+      setStatus("Player campaigns loaded.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-accept-invite-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
     try {
       await api("/api/v1/invites/accept", {
         method: "POST",
         body: JSON.stringify({ token: form.get("token") })
       });
-      setStatus("Invite accepted. Load campaigns and select one.");
+      await loadCampaigns("player");
+      setStatus("Invite accepted.");
     } catch (error) {
       setStatus(error.message);
     }
   });
 
-document
-  .querySelector("#session-state-form")
-  .addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.target);
-
+  el("player-refresh-summary").addEventListener("click", async () => {
     try {
-      const campaignId = getCampaignIdOrFail();
-      const result = await api(`/api/v1/campaigns/${campaignId}/session/state`, {
-        method: "POST",
-        body: JSON.stringify({ state: form.get("state") })
-      });
-
-      state.campaignState = result.campaign.sessionState;
-      renderCampaignState();
-      await loadCampaignSummary();
-      await loadEvents();
-      await loadChatMessages();
-      setStatus("Session state updated.", { sessionState: state.campaignState });
+      await refreshRoleData("player");
+      setStatus("Player summary refreshed.");
     } catch (error) {
       setStatus(error.message);
     }
   });
 
-document
-  .querySelector("#character-form")
-  .addEventListener("submit", async (event) => {
+  el("player-character-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.target);
-
     try {
-      const campaignId = getCampaignIdOrFail();
+      const campaignId = currentCampaignId("player");
+      const stat = (name) => {
+        const value = form.get(name);
+        if (value === "" || value === null || value === undefined) {
+          return undefined;
+        }
+        return Number(value);
+      };
       const result = await api(`/api/v1/campaigns/${campaignId}/characters/me`, {
         method: "PUT",
         body: JSON.stringify({
           name: form.get("name") || undefined,
           stats: {
-            might: numberOrUndefined(form.get("might")),
-            agility: numberOrUndefined(form.get("agility")),
-            mind: numberOrUndefined(form.get("mind")),
-            spirit: numberOrUndefined(form.get("spirit")),
-            health: numberOrUndefined(form.get("health")),
-            stress: numberOrUndefined(form.get("stress"))
+            might: stat("might"),
+            agility: stat("agility"),
+            mind: stat("mind"),
+            spirit: stat("spirit"),
+            health: stat("health"),
+            stress: stat("stress")
           }
         })
       });
-      document.querySelector("#character-output").textContent = JSON.stringify(
+      el("player-character-output").textContent = JSON.stringify(
         result.character,
         null,
         2
       );
-      await loadEvents();
-      await loadChatMessages();
+      await Promise.all([loadEvents("player", true), loadChatMessages("player", true)]);
       setStatus("Character updated.");
     } catch (error) {
       setStatus(error.message);
     }
   });
 
-document.querySelector("#load-characters").addEventListener("click", async () => {
-  try {
-    const campaignId = getCampaignIdOrFail();
-    const result = await api(`/api/v1/campaigns/${campaignId}/characters`);
-    document.querySelector("#character-output").textContent = JSON.stringify(
-      result.characters,
-      null,
-      2
-    );
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
-
-document.querySelector("#roll-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
-
-  try {
-    const campaignId = getCampaignIdOrFail();
-    const result = await api(`/api/v1/campaigns/${campaignId}/rolls`, {
-      method: "POST",
-      body: JSON.stringify({
-        pool: Number(form.get("pool")),
-        difficulty: Number(form.get("difficulty")),
-        label: form.get("label") || ""
-      })
-    });
-    await loadEvents();
-    await loadChatMessages();
-    setStatus("Roll completed.", result.result);
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
-
-document.querySelector("#chat-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
-
-  try {
-    const campaignId = getCampaignIdOrFail();
-    const visibility = String(form.get("visibility") || "PUBLIC").toUpperCase();
-    const recipientUserId = String(form.get("recipientUserId") || "").trim();
-
-    const body = {
-      text: String(form.get("text") || "").trim(),
-      visibility
-    };
-
-    if (visibility === "PRIVATE" && recipientUserId) {
-      body.recipientUserIds = [recipientUserId];
+  el("player-load-characters").addEventListener("click", async () => {
+    try {
+      const campaignId = currentCampaignId("player");
+      const result = await api(`/api/v1/campaigns/${campaignId}/characters`);
+      el("player-character-output").textContent = JSON.stringify(
+        result.characters,
+        null,
+        2
+      );
+      setStatus("Characters loaded.");
+    } catch (error) {
+      setStatus(error.message);
     }
+  });
 
-    const result = await api(`/api/v1/campaigns/${campaignId}/chat/messages`, {
-      method: "POST",
-      body: JSON.stringify(body)
+  el("player-roll-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      const campaignId = currentCampaignId("player");
+      const result = await api(`/api/v1/campaigns/${campaignId}/rolls`, {
+        method: "POST",
+        body: JSON.stringify({
+          pool: Number(form.get("pool")),
+          difficulty: Number(form.get("difficulty")),
+          label: form.get("label") || ""
+        })
+      });
+      await Promise.all([loadEvents("player", true), loadChatMessages("player", true)]);
+      setStatus("Roll completed.", result.result);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-load-events").addEventListener("click", async () => {
+    try {
+      await loadEvents("player");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-chat-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      const campaignId = currentCampaignId("player");
+      const visibility = String(form.get("visibility") || "PUBLIC").toUpperCase();
+      const recipientUserId = String(form.get("recipientUserId") || "").trim();
+      const body = {
+        text: String(form.get("text") || "").trim(),
+        visibility
+      };
+      if (visibility === "PRIVATE" && recipientUserId) {
+        body.recipientUserIds = [recipientUserId];
+      }
+      const result = await api(`/api/v1/campaigns/${campaignId}/chat/messages`, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+      await loadChatMessages("player", true);
+      setStatus("Chat message sent.", result.message);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-load-chat").addEventListener("click", async () => {
+    try {
+      await loadChatMessages("player");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
+function attachMasterHandlers() {
+  el("master-back-welcome").addEventListener("click", () => showPage("welcome"));
+  el("master-logout").addEventListener("click", signOut);
+
+  for (const button of document.querySelectorAll("[data-master-action]")) {
+    button.addEventListener("click", () => {
+      setStatus(`Master action selected: ${button.dataset.masterAction}`);
     });
-
-    await loadChatMessages();
-    setStatus("Chat message sent.", result.message);
-  } catch (error) {
-    setStatus(error.message);
   }
-});
 
-document.querySelector("#load-chat").addEventListener("click", async () => {
-  try {
-    await loadChatMessages();
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
+  el("master-create-campaign-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      const result = await api("/api/v1/campaigns", {
+        method: "POST",
+        body: JSON.stringify({ name: form.get("name") })
+      });
+      setSelectedCampaign(result.campaign);
+      await Promise.all([loadCampaigns("master"), refreshRoleData("master")]);
+      setStatus("Campaign hosted.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
 
-document.querySelector("#load-events").addEventListener("click", async () => {
-  try {
-    await loadEvents();
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
+  el("master-load-campaigns").addEventListener("click", async () => {
+    try {
+      await loadCampaigns("master");
+      setStatus("Master campaigns loaded.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
 
-renderCampaignState();
-clearCampaignDashboard();
-renderAutoRefreshState();
-setStatus("Ready. Register or login first.");
+  el("master-refresh-summary").addEventListener("click", async () => {
+    try {
+      await refreshRoleData("master");
+      setStatus("Master summary refreshed.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-invite-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      const campaignId = currentCampaignId("master");
+      const result = await api(`/api/v1/campaigns/${campaignId}/invites`, {
+        method: "POST",
+        body: JSON.stringify({ email: form.get("email") })
+      });
+      el("master-invite-output").textContent =
+        `Invite created for ${result.invite.email}\n` +
+        `Token: ${result.invite.token}\n` +
+        `Expires: ${formatDate(result.invite.expiresAt)}`;
+      await refreshRoleData("master");
+      setStatus("Invite created.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-session-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      const campaignId = currentCampaignId("master");
+      const result = await api(`/api/v1/campaigns/${campaignId}/session/state`, {
+        method: "POST",
+        body: JSON.stringify({ state: form.get("state") })
+      });
+      state.selectedCampaignState = result.campaign.sessionState;
+      await refreshRoleData("master");
+      setStatus("Session state updated.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-load-events").addEventListener("click", async () => {
+    try {
+      await loadEvents("master");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-chat-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      const campaignId = currentCampaignId("master");
+      const visibility = String(form.get("visibility") || "PUBLIC").toUpperCase();
+      const recipientUserId = String(form.get("recipientUserId") || "").trim();
+      const body = {
+        text: String(form.get("text") || "").trim(),
+        visibility
+      };
+      if (visibility === "PRIVATE" && recipientUserId) {
+        body.recipientUserIds = [recipientUserId];
+      }
+      const result = await api(`/api/v1/campaigns/${campaignId}/chat/messages`, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+      await loadChatMessages("master", true);
+      setStatus("Chat message sent.", result.message);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-load-chat").addEventListener("click", async () => {
+    try {
+      await loadChatMessages("master");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
+function initialize() {
+  attachAuthHandlers();
+  attachWelcomeHandlers();
+  attachPlayerHandlers();
+  attachMasterHandlers();
+  showPage("connection");
+  setWelcomeUser();
+  renderRoleStates();
+  setStatus("Ready. Login first.");
+}
 
 window.addEventListener("beforeunload", () => {
   stopRealtimePolling();
 });
+
+initialize();

@@ -99,3 +99,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Lock direction docs first, then implement."
 - Terms to re-teach: role-based flow, branch pages, direction lock.
 - Preferred pace/format: clear tree + section list + baseline mechanic rules.
+- Date: 2026-02-21
+- Topic: Role-based UX flow expectations
+- What was unclear: Need explicit page tree and separate Player/Master views before further feature expansion.
+- Simpler wording to use next time: "Implement Connection -> Sign-Up -> Welcome -> Player/Master pages first."
+- Terms to re-teach: role-based routing, dashboard shell, branch flow.
+- Preferred pace/format: lock direction, then implement UI flow immediately.

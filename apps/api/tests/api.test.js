@@ -10,11 +10,15 @@ function authHeader(token) {
 }
 
 async function register(app, { displayName, email, password }) {
-  const response = await request(app).post("/api/v1/auth/register").send({
-    displayName,
+  const payload = {
     email,
     password
-  });
+  };
+  if (displayName !== undefined) {
+    payload.displayName = displayName;
+  }
+
+  const response = await request(app).post("/api/v1/auth/register").send(payload);
   expect(response.status).toBe(201);
   return response.body;
 }
@@ -129,6 +133,15 @@ describe("MVP API scenarios", () => {
     expect(playerSummary.body.memberCount).toBe(2);
     expect(playerSummary.body.pendingInvitesCount).toBe(1);
     expect(playerSummary.body.pendingInvites).toHaveLength(0);
+  });
+
+  it("Email/password signup works without display name", async () => {
+    const signup = await register(app, {
+      email: "simple-signup@example.com",
+      password: "secret12"
+    });
+    expect(signup.user.email).toBe("simple-signup@example.com");
+    expect(signup.user.displayName).toBe("simple-signup");
   });
 
   it("D10 roll returns success model and feed includes roll event", async () => {

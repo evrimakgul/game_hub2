@@ -145,3 +145,16 @@ git switch -c restore/milestone-09 milestone-09-polling-fix
 ```powershell
 git switch -c restore/milestone-10 milestone-10-abc-direction-lock
 ```
+
+### milestone-11-role-flow-ui
+- Date: 2026-02-21
+- Commit: `TBD`
+- What was done:
+  - Implemented role-based page tree: Connection -> Sign-Up -> Welcome -> Player/Master views.
+  - Built separate Player and Master interfaces with role-specific controls.
+  - Added Master Dashboard shell with locked option set.
+  - Updated sign-up flow to support email+password-only registration.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-11 milestone-11-role-flow-ui
+```

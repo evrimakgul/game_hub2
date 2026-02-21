@@ -232,13 +232,12 @@ export function createApp(options = {}) {
   app.post(
     "/api/v1/auth/register",
     asyncHandler(async (req, res) => {
-      const displayName = String(req.body.displayName || "").trim();
+      const rawDisplayName = String(req.body.displayName || "").trim();
       const email = toLowerTrimmed(req.body.email);
       const password = String(req.body.password || "");
+      const fallbackDisplayName = email.split("@")[0] || "user";
+      const displayName = rawDisplayName || fallbackDisplayName;
 
-      if (!displayName || displayName.length < 2) {
-        throw httpError(400, "Display name must be at least 2 characters.");
-      }
       if (!email || !email.includes("@")) {
         throw httpError(400, "A valid email is required.");
       }

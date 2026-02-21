@@ -2,6 +2,7 @@
 
 Web FRP hub foundation with:
 - auth (register/login)
+- role-based page flow (Connection -> Sign-Up -> Welcome -> Player/Master)
 - campaign creation and invite flow
 - role-based character visibility (GM vs Player)
 - D10 success rolls
@@ -36,6 +37,8 @@ npm run test:api
 - Default ruleset: `d10-basic`
 - This is MVP baseline architecture, not final production hardening.
 - Events/chat auto-refresh every 2 seconds after a campaign is selected.
+- Email sign-up requires only `email` + `password`.
+- Discord sign-in button is currently a placeholder (not wired to OAuth yet).
 
 ## API Routes (MVP)
 - `POST /api/v1/auth/register`
