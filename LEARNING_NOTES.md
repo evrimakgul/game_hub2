@@ -116,3 +116,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "I will commit and push automatically after completing development tasks."
 - Terms to re-teach: none.
 - Preferred pace/format: execute directly; no commit/push confirmation question.
+- Date: 2026-02-21
+- Topic: Implementation priority policy
+- What was unclear: Prioritization between core architecture work vs UI polishing.
+- Simpler wording to use next time: "Always prioritize core architecture and pivotal functions first; defer polishing tasks."
+- Terms to re-teach: core architecture, pivotal function, deferred polishing.
+- Preferred pace/format: core-first execution, ask direct clarifying questions when architecture scope is ambiguous.

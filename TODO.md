@@ -1,5 +1,14 @@
 # Project TODO
 
+## Core Architecture Priority (Locked)
+- [x] Keep core architecture and pivotal functions as top priority over polishing.
+- [x] Ask clarifying questions when core architecture scope/relations are ambiguous.
+- [ ] Build full GM ruleset definition model (fields, mechanics, effects, relations).
+- [ ] Bind player character sheet schema/sections to ruleset definitions.
+- [ ] Implement ruleset-driven calculations (derived fields, checks, effect resolution).
+- [ ] Reflect GM ruleset changes live in player sheet behavior and values.
+- [ ] Keep polishing tasks tracked but always secondary to core architecture tasks.
+
 ## Current
 - [x] Initialize local Git repository (`main` branch).
 - [x] Create GitHub repository and add `origin` remote.
