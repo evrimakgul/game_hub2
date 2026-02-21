@@ -252,6 +252,28 @@
             <input name="label" placeholder="Label" />
             <button type="submit">Roll</button>
           </form>
+          <div class="row quick-filter-row" data-event-quick-prefix="player">
+            <button type="button" class="ghost" data-event-type="">
+              All
+            </button>
+            <button type="button" class="ghost" data-event-type="DICE_ROLLED">
+              Rolls
+            </button>
+            <button
+              type="button"
+              class="ghost"
+              data-event-type="SESSION_STATE_CHANGED"
+            >
+              Session
+            </button>
+            <button
+              type="button"
+              class="ghost"
+              data-event-type="CHARACTER_UPDATED"
+            >
+              Character
+            </button>
+          </div>
           <div class="row">
             <select id="player-event-type-filter">
               <option value="">all event types</option>
@@ -418,6 +440,28 @@
 
         <section class="card">
           <h3>Events</h3>
+          <div class="row quick-filter-row" data-event-quick-prefix="master">
+            <button type="button" class="ghost" data-event-type="">
+              All
+            </button>
+            <button type="button" class="ghost" data-event-type="DICE_ROLLED">
+              Rolls
+            </button>
+            <button
+              type="button"
+              class="ghost"
+              data-event-type="SESSION_STATE_CHANGED"
+            >
+              Session
+            </button>
+            <button
+              type="button"
+              class="ghost"
+              data-event-type="CHARACTER_UPDATED"
+            >
+              Character
+            </button>
+          </div>
           <div class="row">
             <select id="master-event-type-filter">
               <option value="">all event types</option>

@@ -188,6 +188,20 @@ pre {
   margin-bottom: 6px;
 }
 
+#player-campaign-list button.is-selected,
+#master-campaign-list button.is-selected,
+#master-active-games-list button.is-selected,
+#master-passive-games-list button.is-selected {
+  background: #0a4f66;
+  border-color: #0a4f66;
+}
+
+.quick-filter-row button.is-active {
+  background: #d8ebf8;
+  border-color: #9fc0db;
+  color: #1d3f5a;
+}
+
 #master-ruleset-draft-list li {
   display: flex;
   flex-wrap: wrap;

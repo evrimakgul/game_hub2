@@ -139,6 +139,77 @@ function campaignMatchesMasterFilter(campaign) {
   return true;
 }
 
+function isSelectedCampaignForPrefix(prefix, campaignId) {
+  return (
+    Boolean(state.selectedCampaignId) &&
+    state.selectedCampaignId === campaignId &&
+    state.selectedCampaignRole === expectedRole(prefix)
+  );
+}
+
+function applyCampaignButtonState(button, prefix) {
+  if (!button) {
+    return;
+  }
+  const campaignId = String(button.dataset.campaignId || "");
+  const baseLabel = String(button.dataset.baseLabel || button.textContent || "");
+  button.dataset.baseLabel = baseLabel;
+  const selected = isSelectedCampaignForPrefix(prefix, campaignId);
+  button.classList.toggle("is-selected", selected);
+  button.textContent = selected ? `${baseLabel} [selected]` : baseLabel;
+}
+
+function renderCampaignListSelection(prefix) {
+  const list = el(`${prefix}-campaign-list`);
+  if (!list) {
+    return;
+  }
+  for (const button of list.querySelectorAll("button[data-campaign-id]")) {
+    applyCampaignButtonState(button, prefix);
+  }
+}
+
+function renderEventQuickFilterState(prefix) {
+  const row = document.querySelector(`[data-event-quick-prefix="${prefix}"]`);
+  if (!row) {
+    return;
+  }
+  const selectedType = String(el(`${prefix}-event-type-filter`)?.value || "");
+  for (const button of row.querySelectorAll("button[data-event-type]")) {
+    button.classList.toggle(
+      "is-active",
+      String(button.dataset.eventType || "") === selectedType
+    );
+  }
+}
+
+function attachEventQuickFilters(prefix) {
+  const row = document.querySelector(`[data-event-quick-prefix="${prefix}"]`);
+  if (!row) {
+    return;
+  }
+
+  for (const button of row.querySelectorAll("button[data-event-type]")) {
+    button.addEventListener("click", async () => {
+      const type = String(button.dataset.eventType || "");
+      const select = el(`${prefix}-event-type-filter`);
+      if (select) {
+        select.value = type;
+      }
+      renderEventQuickFilterState(prefix);
+      try {
+        await loadEvents(prefix);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+  }
+
+  const select = el(`${prefix}-event-type-filter`);
+  select?.addEventListener("change", () => renderEventQuickFilterState(prefix));
+  renderEventQuickFilterState(prefix);
+}
+
 function renderMasterActionButtons() {
   for (const button of document.querySelectorAll("[data-master-action]")) {
     button.classList.toggle(
@@ -167,13 +238,10 @@ function renderMasterCampaignBucket(listId, campaigns, emptyText) {
   for (const campaign of campaigns) {
     const item = document.createElement("li");
     const button = document.createElement("button");
-    const selectedMark =
-      campaign.id === state.selectedCampaignId &&
-      campaign.role === "GM"
-        ? " [selected]"
-        : "";
     button.type = "button";
-    button.textContent = `${campaign.name} | session: ${campaign.sessionState}${selectedMark}`;
+    button.dataset.campaignId = campaign.id;
+    button.dataset.baseLabel = `${campaign.name} | session: ${campaign.sessionState}`;
+    applyCampaignButtonState(button, "master");
     button.addEventListener("click", async () => {
       try {
         setSelectedCampaign(campaign);
@@ -413,6 +481,8 @@ function renderRoleStates() {
   renderCampaignState("master");
   renderAutoRefreshState("player");
   renderAutoRefreshState("master");
+  renderCampaignListSelection("player");
+  renderCampaignListSelection("master");
   renderMasterWorkspace();
 }
 
@@ -646,7 +716,9 @@ async function loadCampaigns(prefix) {
   for (const campaign of visibleCampaigns) {
     const item = document.createElement("li");
     const button = document.createElement("button");
-    button.textContent = `${campaign.name} | session: ${campaign.sessionState}`;
+    button.dataset.campaignId = campaign.id;
+    button.dataset.baseLabel = `${campaign.name} | session: ${campaign.sessionState}`;
+    applyCampaignButtonState(button, prefix);
     button.type = "button";
     button.addEventListener("click", async () => {
       try {
@@ -833,6 +905,7 @@ async function loadSummary(prefix) {
 }
 
 async function loadEvents(prefix, silent = false) {
+  renderEventQuickFilterState(prefix);
   const result = await api(eventQueryPath(prefix));
   const lines =
     result.events?.length > 0
@@ -962,6 +1035,7 @@ function attachWelcomeHandlers() {
 function attachPlayerHandlers() {
   el("player-back-welcome").addEventListener("click", () => showPage("welcome"));
   el("player-logout").addEventListener("click", signOut);
+  attachEventQuickFilters("player");
   const playerChatForm = el("player-chat-form");
   const playerChatVisibility = playerChatForm?.elements?.namedItem("visibility");
   playerChatVisibility?.addEventListener("change", () =>
@@ -1123,6 +1197,7 @@ function attachPlayerHandlers() {
 function attachMasterHandlers() {
   el("master-back-welcome").addEventListener("click", () => showPage("welcome"));
   el("master-logout").addEventListener("click", signOut);
+  attachEventQuickFilters("master");
   const masterChatForm = el("master-chat-form");
   const masterChatVisibility = masterChatForm?.elements?.namedItem("visibility");
   masterChatVisibility?.addEventListener("change", () =>
