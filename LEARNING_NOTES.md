@@ -75,3 +75,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Plan full direction now, build MVP now, keep architecture extension-ready."
 - Terms to re-teach: full scope, architecture constraints, extensibility.
 - Preferred pace/format: direct risk answer + concrete safeguard steps.
+- Date: 2026-02-21
+- Topic: Full-scope discovery process
+- What was unclear: Expected active questioning about end-product scope before implementation.
+- Simpler wording to use next time: "Before coding, I will ask full-scope questions and lock decisions."
+- Terms to re-teach: scope discovery, decision lock.
+- Preferred pace/format: short numbered questions with direct answer slots.
