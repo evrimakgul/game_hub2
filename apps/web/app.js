@@ -1,7 +1,9 @@
 const state = {
   token: null,
   user: null,
-  campaignId: null
+  campaignId: null,
+  campaignName: null,
+  campaignState: null
 };
 
 function setStatus(message, payload) {
@@ -38,6 +40,24 @@ function getCampaignIdOrFail() {
     throw new Error("Select a campaign first.");
   }
   return state.campaignId;
+}
+
+function renderCampaignState() {
+  const node = document.querySelector("#campaign-state");
+  if (!state.campaignId) {
+    node.textContent = "No campaign selected.";
+    return;
+  }
+  node.textContent = `Selected: ${state.campaignName || state.campaignId} | Session: ${
+    state.campaignState || "unknown"
+  }`;
+}
+
+function setSelectedCampaign(campaign) {
+  state.campaignId = campaign.id;
+  state.campaignName = campaign.name;
+  state.campaignState = campaign.sessionState || "idle";
+  renderCampaignState();
 }
 
 function numberOrUndefined(value) {
@@ -101,7 +121,7 @@ document.querySelector("#campaign-form").addEventListener("submit", async (event
       method: "POST",
       body: JSON.stringify({ name: form.get("name") })
     });
-    state.campaignId = result.campaign.id;
+    setSelectedCampaign(result.campaign);
     setStatus(`Campaign created and selected: ${result.campaign.name}`);
   } catch (error) {
     setStatus(error.message);
@@ -119,7 +139,7 @@ document.querySelector("#load-campaigns").addEventListener("click", async () => 
       const button = document.createElement("button");
       button.textContent = `${campaign.name} (${campaign.role})`;
       button.addEventListener("click", () => {
-        state.campaignId = campaign.id;
+        setSelectedCampaign(campaign);
         setStatus(`Selected campaign: ${campaign.name}`);
       });
       item.appendChild(button);
@@ -159,6 +179,27 @@ document
         body: JSON.stringify({ token: form.get("token") })
       });
       setStatus("Invite accepted.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+document
+  .querySelector("#session-state-form")
+  .addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+
+    try {
+      const campaignId = getCampaignIdOrFail();
+      const result = await api(`/api/v1/campaigns/${campaignId}/session/state`, {
+        method: "POST",
+        body: JSON.stringify({ state: form.get("state") })
+      });
+
+      state.campaignState = result.campaign.sessionState;
+      renderCampaignState();
+      setStatus("Session state updated.", { sessionState: state.campaignState });
     } catch (error) {
       setStatus(error.message);
     }
@@ -245,4 +286,5 @@ document.querySelector("#load-events").addEventListener("click", async () => {
   }
 });
 
+renderCampaignState();
 setStatus("Ready. Register or login first.");

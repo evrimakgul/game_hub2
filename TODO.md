@@ -30,3 +30,6 @@
 - [x] Build minimal web UI for login, campaign creation, sheet view, and dice rolls.
 - [x] Add automated API tests for core MVP scenarios.
 - [x] Write run/setup instructions in `README.md`.
+
+## MVP Polishing Tasks
+- [x] Add GM session-state control flow (UI + API test coverage + route docs).

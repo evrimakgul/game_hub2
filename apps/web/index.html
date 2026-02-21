@@ -34,7 +34,21 @@
           <button type="submit">Create Campaign</button>
         </form>
         <button id="load-campaigns">Load My Campaigns</button>
+        <div id="campaign-state"></div>
         <ul id="campaign-list"></ul>
+      </section>
+
+      <section>
+        <h2>Session State (GM)</h2>
+        <form id="session-state-form">
+          <select name="state" required>
+            <option value="idle">idle</option>
+            <option value="active">active</option>
+            <option value="paused">paused</option>
+            <option value="ended">ended</option>
+          </select>
+          <button type="submit">Set Session State</button>
+        </form>
       </section>
 
       <section>

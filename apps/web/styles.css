@@ -35,6 +35,7 @@ form {
 }
 
 input,
+select,
 button {
   padding: 8px 10px;
   border-radius: 8px;

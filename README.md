@@ -35,3 +35,17 @@ npm run test:api
 - Data file location: `apps/api/data/store.json`
 - Default ruleset: `d10-basic`
 - This is MVP baseline architecture, not final production hardening.
+
+## API Routes (MVP)
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/campaigns`
+- `GET /api/v1/campaigns`
+- `POST /api/v1/campaigns/:campaignId/invites`
+- `POST /api/v1/invites/accept`
+- `GET /api/v1/campaigns/:campaignId/characters`
+- `GET /api/v1/campaigns/:campaignId/characters/:characterId`
+- `PUT /api/v1/campaigns/:campaignId/characters/me`
+- `POST /api/v1/campaigns/:campaignId/rolls`
+- `GET /api/v1/campaigns/:campaignId/events`
+- `POST /api/v1/campaigns/:campaignId/session/state`

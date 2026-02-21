@@ -183,4 +183,59 @@ describe("MVP API scenarios", () => {
     expect(campaigns.body.campaigns).toHaveLength(1);
     expect(campaigns.body.campaigns[0].name).toBe("Persisted Realm");
   });
+
+  it("Only GM can change session state and event feed records the change", async () => {
+    const gm = await register(app, {
+      displayName: "GM State",
+      email: "gm-state@example.com",
+      password: "secret12"
+    });
+    const player = await register(app, {
+      displayName: "Player State",
+      email: "player-state@example.com",
+      password: "secret12"
+    });
+
+    const createCampaign = await request(app)
+      .post("/api/v1/campaigns")
+      .set(authHeader(gm.token))
+      .send({ name: "State Realm" });
+    const campaignId = createCampaign.body.campaign.id;
+
+    const invite = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/invites`)
+      .set(authHeader(gm.token))
+      .send({ email: "player-state@example.com" });
+
+    await request(app)
+      .post("/api/v1/invites/accept")
+      .set(authHeader(player.token))
+      .send({ token: invite.body.invite.token });
+
+    const playerAttempt = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/session/state`)
+      .set(authHeader(player.token))
+      .send({ state: "active" });
+    expect(playerAttempt.status).toBe(403);
+
+    const gmChange = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/session/state`)
+      .set(authHeader(gm.token))
+      .send({ state: "active" });
+    expect(gmChange.status).toBe(200);
+    expect(gmChange.body.campaign.sessionState).toBe("active");
+
+    const events = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/events`)
+      .set(authHeader(gm.token));
+    expect(events.status).toBe(200);
+    expect(
+      events.body.events.some(
+        (entry) =>
+          entry.type === "SESSION_STATE_CHANGED" &&
+          entry.payload &&
+          entry.payload.state === "active"
+      )
+    ).toBe(true);
+  });
 });
