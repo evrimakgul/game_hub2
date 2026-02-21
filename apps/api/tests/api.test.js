@@ -201,6 +201,50 @@ describe("MVP API scenarios", () => {
     ).toBe(true);
   });
 
+  it("D10 roll validates pool/difficulty with clear 400 errors", async () => {
+    const gm = await register(app, {
+      displayName: "GM Roll Validation",
+      email: "gm-roll-validation@example.com",
+      password: "secret12"
+    });
+    const player = await register(app, {
+      displayName: "Player Roll Validation",
+      email: "player-roll-validation@example.com",
+      password: "secret12"
+    });
+
+    const createCampaign = await request(app)
+      .post("/api/v1/campaigns")
+      .set(authHeader(gm.token))
+      .send({ name: "Roll Validation Realm" });
+    const campaignId = createCampaign.body.campaign.id;
+
+    const invite = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/invites`)
+      .set(authHeader(gm.token))
+      .send({ email: "player-roll-validation@example.com" });
+    await request(app)
+      .post("/api/v1/invites/accept")
+      .set(authHeader(player.token))
+      .send({ token: invite.body.invite.token });
+
+    const invalidPool = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/rolls`)
+      .set(authHeader(player.token))
+      .send({ pool: 0, difficulty: 6 });
+    expect(invalidPool.status).toBe(400);
+    expect(invalidPool.body.error).toContain("Pool must be an integer");
+
+    const invalidDifficulty = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/rolls`)
+      .set(authHeader(player.token))
+      .send({ pool: 5, difficulty: 11 });
+    expect(invalidDifficulty.status).toBe(400);
+    expect(invalidDifficulty.body.error).toContain(
+      "Difficulty must be an integer"
+    );
+  });
+
   it("Data persists across app restart", async () => {
     const appA = createApp({ storeFile, jwtSecret: "test-secret" });
     const gm = await register(appA, {
@@ -282,6 +326,58 @@ describe("MVP API scenarios", () => {
           entry.payload.state === "active"
       )
     ).toBe(true);
+  });
+
+  it("SSE stream denies outsiders and allows campaign members", async () => {
+    const gm = await register(app, {
+      displayName: "GM Stream",
+      email: "gm-stream@example.com",
+      password: "secret12"
+    });
+    const outsider = await register(app, {
+      displayName: "Outsider",
+      email: "outsider-stream@example.com",
+      password: "secret12"
+    });
+
+    const createCampaign = await request(app)
+      .post("/api/v1/campaigns")
+      .set(authHeader(gm.token))
+      .send({ name: "Stream Realm" });
+    expect(createCampaign.status).toBe(201);
+    const campaignId = createCampaign.body.campaign.id;
+
+    const server = app.listen(0);
+    const port = server.address().port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    try {
+      const denied = await fetch(
+        `${baseUrl}/api/v1/campaigns/${campaignId}/stream?token=${outsider.token}`
+      );
+      expect(denied.status).toBe(403);
+
+      const abortController = new AbortController();
+      const stream = await fetch(
+        `${baseUrl}/api/v1/campaigns/${campaignId}/stream?token=${gm.token}`,
+        {
+          headers: { Accept: "text/event-stream" },
+          signal: abortController.signal
+        }
+      );
+      expect(stream.status).toBe(200);
+      expect(stream.headers.get("content-type")).toContain("text/event-stream");
+
+      const reader = stream.body.getReader();
+      const firstChunk = await reader.read();
+      const chunkText = new TextDecoder().decode(
+        firstChunk.value || new Uint8Array()
+      );
+      expect(chunkText).toContain("event: connected");
+      abortController.abort();
+      reader.releaseLock();
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 
   it("Chat supports public and private visibility rules", async () => {

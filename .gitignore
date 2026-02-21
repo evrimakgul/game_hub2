@@ -20,3 +20,6 @@ coverage/
 .tmp/
 temp/
 apps/api/data/*.json
+
+# Local scratch assets (intentionally untracked)
+some_images/

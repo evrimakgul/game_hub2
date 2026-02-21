@@ -5,6 +5,7 @@ Web FRP hub foundation with:
 - role-based page flow (Connection -> Sign-Up -> Welcome -> Player/Master)
 - campaign creation and invite flow
 - role-based character visibility (GM vs Player)
+- 10-section character sheet layout scaffold (Bio, Combat, Stats, Skills, Powers, Equipment, Merits/Flaws, Connections, Inventory, Notes)
 - D10 success rolls
 - session event feed
 - JSON persistence across restarts
@@ -36,15 +37,17 @@ npm run test:api
 - Data file location: `apps/api/data/store.json`
 - Default ruleset: `d10-basic`
 - This is MVP baseline architecture, not final production hardening.
-- Events/chat auto-refresh every 2 seconds after a campaign is selected.
+- Events/chat auto-refresh uses SSE server push after a campaign is selected.
 - Email sign-up requires only `email` + `password`.
 - Discord sign-in button is currently a placeholder (not wired to OAuth yet).
+- For real-group MVP validation, use `MVP_SESSION_VALIDATION_CHECKLIST.md`.
 
 ## API Routes (MVP)
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `POST /api/v1/campaigns`
 - `GET /api/v1/campaigns`
+- `GET /api/v1/campaigns/:campaignId/stream` (SSE stream, token can be sent in `Authorization` header or `?token=...`)
 - `GET /api/v1/campaigns/:campaignId/summary`
 - `POST /api/v1/campaigns/:campaignId/invites`
 - `POST /api/v1/invites/accept`

@@ -84,18 +84,152 @@
 
         <section class="card">
           <h3>Character Sheet</h3>
-          <p class="muted">
-            Target sections: Bio, Combat Summary, Stats, Skills, Powers/Spells, Equipment,
-            Merits/Flaws, Connections, Inventory, Notes.
-          </p>
-          <form id="player-character-form">
-            <input name="name" placeholder="Character name" />
-            <input name="might" type="number" min="0" max="10" placeholder="Might" />
-            <input name="agility" type="number" min="0" max="10" placeholder="Agility" />
-            <input name="mind" type="number" min="0" max="10" placeholder="Mind" />
-            <input name="spirit" type="number" min="0" max="10" placeholder="Spirit" />
-            <input name="health" type="number" min="0" max="20" placeholder="Health" />
-            <input name="stress" type="number" min="0" max="20" placeholder="Stress" />
+          <p class="muted">Layout-first redesign with the 10 locked sections.</p>
+          <form id="player-character-form" class="sheet-form">
+            <div class="sheet-grid">
+              <fieldset class="sheet-section">
+                <legend>1. Bio / General Info</legend>
+                <label>
+                  Name
+                  <input name="name" placeholder="Character name" />
+                </label>
+                <label>
+                  Pronouns
+                  <input name="bioPronouns" placeholder="Layout only (not saved yet)" />
+                </label>
+                <label>
+                  Archetype
+                  <input name="bioArchetype" placeholder="Layout only (not saved yet)" />
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>2. Combat Summary</legend>
+                <label>
+                  Initiative
+                  <input name="combatInitiative" placeholder="Layout only" />
+                </label>
+                <label>
+                  Defense
+                  <input name="combatDefense" placeholder="Layout only" />
+                </label>
+                <label>
+                  Armor
+                  <input name="combatArmor" placeholder="Layout only" />
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>3. Stats</legend>
+                <label>
+                  Might (0-10)
+                  <input name="might" type="number" min="0" max="10" placeholder="Might" />
+                </label>
+                <label>
+                  Agility (0-10)
+                  <input name="agility" type="number" min="0" max="10" placeholder="Agility" />
+                </label>
+                <label>
+                  Mind (0-10)
+                  <input name="mind" type="number" min="0" max="10" placeholder="Mind" />
+                </label>
+                <label>
+                  Spirit (0-10)
+                  <input name="spirit" type="number" min="0" max="10" placeholder="Spirit" />
+                </label>
+                <label>
+                  Health (0-20)
+                  <input name="health" type="number" min="0" max="20" placeholder="Health" />
+                </label>
+                <label>
+                  Stress (0-20)
+                  <input name="stress" type="number" min="0" max="20" placeholder="Stress" />
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>4. Skills</legend>
+                <label>
+                  Skill Lines
+                  <textarea
+                    name="skills"
+                    rows="4"
+                    placeholder="Layout only (not saved yet)"
+                  ></textarea>
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>5. Powers / Spells</legend>
+                <label>
+                  Known Powers
+                  <textarea
+                    name="powers"
+                    rows="4"
+                    placeholder="Layout only (not saved yet)"
+                  ></textarea>
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>6. Equipment</legend>
+                <label>
+                  Equipped Gear
+                  <textarea
+                    name="equipment"
+                    rows="4"
+                    placeholder="Layout only (not saved yet)"
+                  ></textarea>
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>7. Merits / Flaws</legend>
+                <label>
+                  Traits
+                  <textarea
+                    name="meritsFlaws"
+                    rows="4"
+                    placeholder="Layout only (not saved yet)"
+                  ></textarea>
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>8. Connections</legend>
+                <label>
+                  People and Factions
+                  <textarea
+                    name="connections"
+                    rows="4"
+                    placeholder="Layout only (not saved yet)"
+                  ></textarea>
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>9. Inventory</legend>
+                <label>
+                  Carried Items
+                  <textarea
+                    name="inventory"
+                    rows="4"
+                    placeholder="Layout only (not saved yet)"
+                  ></textarea>
+                </label>
+              </fieldset>
+
+              <fieldset class="sheet-section sheet-section--wide">
+                <legend>10. Notes</legend>
+                <label>
+                  Session Notes
+                  <textarea name="notes" rows="5" placeholder="Saved in MVP"></textarea>
+                </label>
+              </fieldset>
+            </div>
+            <p class="muted">
+              MVP save support now: Name, Stats, and Notes. Other sections are layout placeholders.
+            </p>
             <button type="submit">Update My Sheet</button>
           </form>
           <button id="player-load-characters" type="button">Load My Visible Characters</button>

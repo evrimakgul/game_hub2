@@ -67,6 +67,17 @@ function parseSinceTimestamp(sinceRaw) {
   return parsed;
 }
 
+function parseIntegerInRange(value, { field, min, max }) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < min || numeric > max) {
+    throw httpError(
+      400,
+      `${field} must be an integer between ${min} and ${max}.`
+    );
+  }
+  return numeric;
+}
+
 function canReadChatMessage(message, userId) {
   if (message.visibility === "PUBLIC") {
     return true;
@@ -204,14 +215,76 @@ function normalizeStats(stats = {}) {
 }
 
 function addEvent(data, { campaignId, type, actorUserId, payload = {} }) {
-  data.sessionEvents.push({
+  const event = {
     id: createId(),
     campaignId,
     type,
     actorUserId,
     payload,
     createdAt: new Date().toISOString()
-  });
+  };
+  data.sessionEvents.push(event);
+  return event;
+}
+
+function writeSseEvent(res, type, payload) {
+  res.write(`event: ${type}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function createRealtimeHub() {
+  const subscribers = new Set();
+
+  function unsubscribe(subscriber) {
+    subscribers.delete(subscriber);
+  }
+
+  function subscribe(subscriber) {
+    subscribers.add(subscriber);
+    return () => unsubscribe(subscriber);
+  }
+
+  function publishSessionEvent(event) {
+    if (!event) {
+      return;
+    }
+    for (const subscriber of subscribers) {
+      if (subscriber.campaignId !== event.campaignId) {
+        continue;
+      }
+      try {
+        writeSseEvent(subscriber.res, "session_event", event);
+      } catch {
+        unsubscribe(subscriber);
+      }
+    }
+  }
+
+  function publishChatMessage(message, userById) {
+    if (!message) {
+      return;
+    }
+    const payload = sanitizeChatMessage(message, userById);
+    for (const subscriber of subscribers) {
+      if (subscriber.campaignId !== message.campaignId) {
+        continue;
+      }
+      if (!canReadChatMessage(message, subscriber.userId)) {
+        continue;
+      }
+      try {
+        writeSseEvent(subscriber.res, "chat_message", payload);
+      } catch {
+        unsubscribe(subscriber);
+      }
+    }
+  }
+
+  return {
+    subscribe,
+    publishSessionEvent,
+    publishChatMessage
+  };
 }
 
 export function createApp(options = {}) {
@@ -220,6 +293,7 @@ export function createApp(options = {}) {
   const jwtSecret = options.jwtSecret || process.env.JWT_SECRET || "dev-secret";
   const store = options.store || new JsonStore(storeFile);
   const auth = createAuthService({ store, jwtSecret });
+  const realtimeHub = createRealtimeHub();
   const app = express();
 
   app.use(cors());
@@ -310,7 +384,7 @@ export function createApp(options = {}) {
         throw httpError(400, "Campaign name must be at least 3 characters.");
       }
 
-      const campaign = store.update((data) => {
+      const created = store.update((data) => {
         const now = new Date().toISOString();
         const nextCampaign = {
           id: createId(),
@@ -340,17 +414,18 @@ export function createApp(options = {}) {
           })
         );
 
-        addEvent(data, {
+        const event = addEvent(data, {
           campaignId: nextCampaign.id,
           type: "CAMPAIGN_CREATED",
           actorUserId: req.user.id,
           payload: { campaignName: nextCampaign.name }
         });
 
-        return nextCampaign;
+        return { campaign: nextCampaign, event };
       });
+      realtimeHub.publishSessionEvent(created.event);
 
-      res.status(201).json({ campaign: sanitizeCampaign(campaign, "GM") });
+      res.status(201).json({ campaign: sanitizeCampaign(created.campaign, "GM") });
     })
   );
 
@@ -372,6 +447,58 @@ export function createApp(options = {}) {
         .filter(Boolean);
 
       res.json({ campaigns });
+    })
+  );
+
+  app.get(
+    "/api/v1/campaigns/:campaignId/stream",
+    (req, _res, next) => {
+      const tokenFromQuery = String(req.query.token || "").trim();
+      if (tokenFromQuery && !req.headers.authorization) {
+        req.headers.authorization = `Bearer ${tokenFromQuery}`;
+      }
+      next();
+    },
+    auth.requireAuth,
+    asyncHandler(async (req, res) => {
+      const data = store.read();
+      const campaignId = req.params.campaignId;
+      const membership = findMembership(data, campaignId, req.user.id);
+      if (!membership) {
+        throw httpError(403, "Campaign access denied.");
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders?.();
+      res.write("retry: 2000\n\n");
+
+      const unsubscribe = realtimeHub.subscribe({
+        campaignId,
+        userId: req.user.id,
+        res
+      });
+
+      writeSseEvent(res, "connected", {
+        campaignId,
+        userId: req.user.id,
+        at: new Date().toISOString()
+      });
+
+      const heartbeatTimerId = setInterval(() => {
+        try {
+          res.write(": keepalive\n\n");
+        } catch {
+          // Connection close handler will clean up.
+        }
+      }, 25000);
+
+      req.on("close", () => {
+        clearInterval(heartbeatTimerId);
+        unsubscribe();
+      });
     })
   );
 
@@ -406,7 +533,7 @@ export function createApp(options = {}) {
         throw httpError(400, "A valid invited email is required.");
       }
 
-      const invite = store.update((data) => {
+      const created = store.update((data) => {
         const campaign = data.campaigns.find((entry) => entry.id === campaignId);
         if (!campaign) {
           throw httpError(404, "Campaign not found.");
@@ -442,24 +569,25 @@ export function createApp(options = {}) {
         };
 
         data.invites.push(nextInvite);
-        addEvent(data, {
+        const event = addEvent(data, {
           campaignId,
           type: "PLAYER_INVITED",
           actorUserId: req.user.id,
           payload: { email: invitedEmail }
         });
 
-        return nextInvite;
+        return { invite: nextInvite, event };
       });
+      realtimeHub.publishSessionEvent(created.event);
 
       res.status(201).json({
         invite: {
-          id: invite.id,
-          campaignId: invite.campaignId,
-          email: invite.email,
-          status: invite.status,
-          expiresAt: invite.expiresAt,
-          token: invite.token
+          id: created.invite.id,
+          campaignId: created.invite.campaignId,
+          email: created.invite.email,
+          status: created.invite.status,
+          expiresAt: created.invite.expiresAt,
+          token: created.invite.token
         }
       });
     })
@@ -523,17 +651,18 @@ export function createApp(options = {}) {
         invite.acceptedByUserId = req.user.id;
         invite.acceptedAt = new Date().toISOString();
 
-        addEvent(data, {
+        const event = addEvent(data, {
           campaignId: campaign.id,
           type: "PLAYER_JOINED",
           actorUserId: req.user.id,
           payload: { userId: req.user.id, email: req.user.email }
         });
 
-        return campaign;
+        return { campaign, event };
       });
+      realtimeHub.publishSessionEvent(accepted.event);
 
-      res.json({ campaign: sanitizeCampaign(accepted, "PLAYER") });
+      res.json({ campaign: sanitizeCampaign(accepted.campaign, "PLAYER") });
     })
   );
 
@@ -597,7 +726,7 @@ export function createApp(options = {}) {
       const campaignId = req.params.campaignId;
       const payload = req.body || {};
 
-      const updatedCharacter = store.update((data) => {
+      const updated = store.update((data) => {
         const membership = findMembership(data, campaignId, req.user.id);
         if (!membership) {
           throw httpError(403, "Campaign access denied.");
@@ -634,17 +763,18 @@ export function createApp(options = {}) {
 
         character.updatedAt = new Date().toISOString();
 
-        addEvent(data, {
+        const event = addEvent(data, {
           campaignId,
           type: "CHARACTER_UPDATED",
           actorUserId: req.user.id,
           payload: { characterId: character.id }
         });
 
-        return character;
+        return { character, event };
       });
+      realtimeHub.publishSessionEvent(updated.event);
 
-      res.json({ character: updatedCharacter });
+      res.json({ character: updated.character });
     })
   );
 
@@ -653,12 +783,22 @@ export function createApp(options = {}) {
     auth.requireAuth,
     asyncHandler(async (req, res) => {
       const campaignId = req.params.campaignId;
-      const pool = Number(req.body.pool);
-      const difficulty =
-        req.body.difficulty === undefined ? 6 : Number(req.body.difficulty);
+      const pool = parseIntegerInRange(req.body.pool, {
+        field: "Pool",
+        min: 1,
+        max: 20
+      });
+      const difficulty = parseIntegerInRange(
+        req.body.difficulty === undefined ? 6 : req.body.difficulty,
+        {
+          field: "Difficulty",
+          min: 2,
+          max: 10
+        }
+      );
       const label = String(req.body.label || "").trim();
 
-      const result = store.update((data) => {
+      const outcome = store.update((data) => {
         const campaign = data.campaigns.find((entry) => entry.id === campaignId);
         if (!campaign) {
           throw httpError(404, "Campaign not found.");
@@ -675,7 +815,7 @@ export function createApp(options = {}) {
         }
 
         const roll = adapter.rollCheck({ pool, difficulty });
-        addEvent(data, {
+        const event = addEvent(data, {
           campaignId,
           type: "DICE_ROLLED",
           actorUserId: req.user.id,
@@ -685,10 +825,11 @@ export function createApp(options = {}) {
           }
         });
 
-        return roll;
+        return { roll, event };
       });
+      realtimeHub.publishSessionEvent(outcome.event);
 
-      res.status(201).json({ result });
+      res.status(201).json({ result: outcome.roll });
     })
   );
 
@@ -759,7 +900,7 @@ export function createApp(options = {}) {
         throw httpError(400, "Visibility must be PUBLIC or PRIVATE.");
       }
 
-      const message = store.update((data) => {
+      const created = store.update((data) => {
         const campaign = data.campaigns.find((entry) => entry.id === campaignId);
         if (!campaign) {
           throw httpError(404, "Campaign not found.");
@@ -813,8 +954,9 @@ export function createApp(options = {}) {
         };
 
         data.chatMessages.push(nextMessage);
+        let event = null;
         if (visibility === "PUBLIC") {
-          addEvent(data, {
+          event = addEvent(data, {
             campaignId,
             type: "CHAT_MESSAGE_PUBLIC",
             actorUserId: req.user.id,
@@ -823,13 +965,17 @@ export function createApp(options = {}) {
             }
           });
         }
-        return nextMessage;
+        return { message: nextMessage, event };
       });
 
       const data = store.read();
       const userById = new Map(data.users.map((entry) => [entry.id, entry]));
+      if (created.event) {
+        realtimeHub.publishSessionEvent(created.event);
+      }
+      realtimeHub.publishChatMessage(created.message, userById);
       res.status(201).json({
-        message: sanitizeChatMessage(message, userById)
+        message: sanitizeChatMessage(created.message, userById)
       });
     })
   );
@@ -895,7 +1041,7 @@ export function createApp(options = {}) {
         throw httpError(400, "State must be idle|active|paused|ended.");
       }
 
-      const campaign = store.update((data) => {
+      const updated = store.update((data) => {
         const membership = findMembership(data, campaignId, req.user.id);
         if (!isGm(membership)) {
           throw httpError(403, "Only GM can change session state.");
@@ -909,17 +1055,18 @@ export function createApp(options = {}) {
         target.sessionState = state;
         target.updatedAt = new Date().toISOString();
 
-        addEvent(data, {
+        const event = addEvent(data, {
           campaignId,
           type: "SESSION_STATE_CHANGED",
           actorUserId: req.user.id,
           payload: { state }
         });
 
-        return target;
+        return { campaign: target, event };
       });
+      realtimeHub.publishSessionEvent(updated.event);
 
-      res.json({ campaign: sanitizeCampaign(campaign, "GM") });
+      res.json({ campaign: sanitizeCampaign(updated.campaign, "GM") });
     })
   );
 

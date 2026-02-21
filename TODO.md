@@ -43,15 +43,17 @@
 - [x] Improve campaign dashboard flow (summary API, member/invite visibility, event filtering).
 - [x] Add basic text chat (public/private) with access-safe API and UI.
 - [x] Add auto-refresh polling for events/chat during live sessions.
+- [x] Add stricter roll input validation (`pool`/`difficulty`) with 400-level API errors and tests.
 
 ## Next Tasks
 - [ ] Complete MVP validation by running 2 full real sessions with your group.
-- [ ] Replace polling with server-push realtime updates (WebSocket or SSE).
+- [ ] Use `MVP_SESSION_VALIDATION_CHECKLIST.md` while running those 2 sessions.
+- [x] Replace polling with server-push realtime updates (WebSocket or SSE).
 
 ## Direction-Locked Implementation Tasks
 - [x] Lock A/B/C direction decisions in project docs (`A_B_C_DIRECTION_LOCK.md`).
 - [x] Build role-based page flow: Connection -> Sign-Up Info -> Welcome -> Player/Master branches.
 - [x] Implement separate Player and Master views.
 - [x] Build Master Dashboard shell with locked options.
-- [ ] Start character sheet redesign by adding the 10 locked sections (layout first).
+- [x] Start character sheet redesign by adding the 10 locked sections (layout first).
 - [x] Keep D10 baseline mechanics (`roll >= difficulty`, count successes) while preparing extension hooks.

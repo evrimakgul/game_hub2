@@ -6,10 +6,10 @@ const state = {
   selectedCampaignName: null,
   selectedCampaignState: null,
   selectedCampaignRole: null,
-  pollTimerId: null,
-  pollPrefix: null,
-  pollInFlight: false,
-  pollIntervalMs: 2000
+  realtimeSource: null,
+  realtimePrefix: null,
+  realtimeCampaignId: null,
+  realtimeInFlight: false
 };
 
 function el(id) {
@@ -96,8 +96,22 @@ function renderAutoRefreshState(prefix) {
     node.textContent = "Auto-refresh: off (select a campaign first).";
     return;
   }
-  if (state.pollTimerId && state.pollPrefix === prefix) {
-    node.textContent = `Auto-refresh: on (${state.pollIntervalMs / 1000}s for events/chat).`;
+  if (
+    state.realtimeSource &&
+    state.realtimePrefix === prefix &&
+    state.realtimeCampaignId === state.selectedCampaignId
+  ) {
+    if (state.realtimeSource.readyState === EventSource.OPEN) {
+      node.textContent = "Auto-refresh: on (server push for events/chat).";
+    } else if (state.realtimeSource.readyState === EventSource.CONNECTING) {
+      node.textContent = "Auto-refresh: reconnecting...";
+    } else {
+      node.textContent = "Auto-refresh: off.";
+    }
+    return;
+  }
+  if (typeof EventSource === "undefined") {
+    node.textContent = "Auto-refresh: off (browser does not support SSE).";
     return;
   }
   node.textContent = "Auto-refresh: off.";
@@ -115,7 +129,7 @@ function showPage(pageName) {
     page.classList.toggle("page--active", page.dataset.page === pageName);
   }
   state.currentPage = pageName;
-  ensureRealtimePolling();
+  ensureRealtimeStream();
   renderRoleStates();
 }
 
@@ -140,7 +154,7 @@ function signOut() {
   state.token = null;
   state.user = null;
   clearCampaignSelection();
-  stopRealtimePolling();
+  stopRealtimeStream();
   setWelcomeUser();
   clearRoleOutputs("player");
   clearRoleOutputs("master");
@@ -210,47 +224,81 @@ function formatChat(entry) {
   return `[${formatDate(entry.createdAt)}] [PUBLIC] ${entry.senderDisplayName}: ${entry.text}`;
 }
 
-function stopRealtimePolling() {
-  if (state.pollTimerId) {
-    clearInterval(state.pollTimerId);
-    state.pollTimerId = null;
+function stopRealtimeStream() {
+  if (state.realtimeSource) {
+    state.realtimeSource.close();
+    state.realtimeSource = null;
   }
-  state.pollPrefix = null;
+  state.realtimePrefix = null;
+  state.realtimeCampaignId = null;
+  state.realtimeInFlight = false;
   renderRoleStates();
 }
 
-async function pollRealtimeSilently() {
-  if (state.pollInFlight || !state.pollPrefix) {
+async function refreshRealtimeSilently(prefix = state.realtimePrefix) {
+  if (
+    state.realtimeInFlight ||
+    !prefix ||
+    !hasValidSelectionFor(prefix) ||
+    getActivePrefix() !== prefix
+  ) {
     return;
   }
-  state.pollInFlight = true;
+  state.realtimeInFlight = true;
   try {
     await Promise.all([
-      loadEvents(state.pollPrefix, true),
-      loadChatMessages(state.pollPrefix, true)
+      loadEvents(prefix, true),
+      loadChatMessages(prefix, true)
     ]);
   } catch {
-    // Keep polling alive on transient failures.
+    // Keep stream alive on transient refresh failures.
   } finally {
-    state.pollInFlight = false;
+    state.realtimeInFlight = false;
   }
 }
 
-function ensureRealtimePolling() {
+function ensureRealtimeStream() {
   const prefix = getActivePrefix();
   if (!prefix || !state.token || !hasValidSelectionFor(prefix)) {
-    stopRealtimePolling();
+    stopRealtimeStream();
     return;
   }
-  if (state.pollTimerId && state.pollPrefix === prefix) {
+  const campaignId = state.selectedCampaignId;
+  if (
+    state.realtimeSource &&
+    state.realtimePrefix === prefix &&
+    state.realtimeCampaignId === campaignId
+  ) {
     renderRoleStates();
     return;
   }
-  stopRealtimePolling();
-  state.pollPrefix = prefix;
-  state.pollTimerId = setInterval(pollRealtimeSilently, state.pollIntervalMs);
+  stopRealtimeStream();
+  if (typeof EventSource === "undefined") {
+    renderRoleStates();
+    return;
+  }
+
+  const params = new URLSearchParams({ token: state.token });
+  const source = new EventSource(
+    `/api/v1/campaigns/${campaignId}/stream?${params.toString()}`
+  );
+  source.addEventListener("session_event", () => {
+    refreshRealtimeSilently(prefix);
+  });
+  source.addEventListener("chat_message", () => {
+    refreshRealtimeSilently(prefix);
+  });
+  source.addEventListener("connected", () => {
+    refreshRealtimeSilently(prefix);
+  });
+  source.onerror = () => {
+    renderRoleStates();
+  };
+  state.realtimeSource = source;
+  state.realtimePrefix = prefix;
+  state.realtimeCampaignId = campaignId;
   renderRoleStates();
-  pollRealtimeSilently();
+  refreshRealtimeSilently(prefix);
 }
 
 async function loadCampaigns(prefix) {
@@ -290,7 +338,7 @@ function setSelectedCampaign(campaign) {
   state.selectedCampaignState = campaign.sessionState || "idle";
   state.selectedCampaignRole = campaign.role;
   renderRoleStates();
-  ensureRealtimePolling();
+  ensureRealtimeStream();
 }
 
 function renderMembers(prefix, members) {
@@ -325,6 +373,54 @@ function renderInvites(prefix, pendingInvites = [], pendingCount = 0) {
     item.textContent = `${invite.email} | token: ${invite.token} | expires: ${formatDate(invite.expiresAt)}`;
     node.appendChild(item);
   }
+}
+
+function setFormValue(form, name, value) {
+  const field = form.elements.namedItem(name);
+  if (!field) {
+    return;
+  }
+  field.value = value === undefined || value === null ? "" : String(value);
+}
+
+function populatePlayerCharacterForm(character) {
+  const form = el("player-character-form");
+  if (!form || !character) {
+    return;
+  }
+  setFormValue(form, "name", character.name || "");
+  setFormValue(form, "notes", character.notes || "");
+
+  const stats = character.stats || {};
+  setFormValue(form, "might", stats.might);
+  setFormValue(form, "agility", stats.agility);
+  setFormValue(form, "mind", stats.mind);
+  setFormValue(form, "spirit", stats.spirit);
+  setFormValue(form, "health", stats.health);
+  setFormValue(form, "stress", stats.stress);
+}
+
+async function loadPlayerCharacters(silent = false) {
+  const campaignId = currentCampaignId("player");
+  const result = await api(`/api/v1/campaigns/${campaignId}/characters`);
+  el("player-character-output").textContent = JSON.stringify(
+    result.characters,
+    null,
+    2
+  );
+
+  if (result.characters?.length > 0) {
+    const myCharacter =
+      result.characters.find((entry) => entry.userId === state.user?.id) ||
+      result.characters[0];
+    populatePlayerCharacterForm(myCharacter);
+  }
+
+  if (!silent) {
+    setStatus("Characters loaded.");
+  }
+
+  return result.characters;
 }
 
 async function loadSummary(prefix) {
@@ -379,7 +475,10 @@ async function refreshRoleData(prefix) {
   await loadSummary(prefix);
   await loadEvents(prefix, true);
   await loadChatMessages(prefix, true);
-  ensureRealtimePolling();
+  if (prefix === "player") {
+    await loadPlayerCharacters(true);
+  }
+  ensureRealtimeStream();
 }
 
 function attachAuthHandlers() {
@@ -447,7 +546,7 @@ function attachWelcomeHandlers() {
         clearRoleOutputs("player");
       }
       await loadCampaigns("player");
-      ensureRealtimePolling();
+      ensureRealtimeStream();
       setStatus("Player view opened.");
     } catch (error) {
       setStatus(error.message);
@@ -462,7 +561,7 @@ function attachWelcomeHandlers() {
         clearRoleOutputs("master");
       }
       await loadCampaigns("master");
-      ensureRealtimePolling();
+      ensureRealtimeStream();
       setStatus("Master view opened.");
     } catch (error) {
       setStatus(error.message);
@@ -514,27 +613,34 @@ function attachPlayerHandlers() {
     const form = new FormData(event.target);
     try {
       const campaignId = currentCampaignId("player");
-      const stat = (name) => {
-        const value = form.get(name);
-        if (value === "" || value === null || value === undefined) {
-          return undefined;
+      const payload = {};
+      const name = String(form.get("name") || "").trim();
+      const notes = String(form.get("notes") || "");
+      if (name) {
+        payload.name = name;
+      }
+      payload.notes = notes;
+
+      const statNames = ["might", "agility", "mind", "spirit", "health", "stress"];
+      const statValues = Object.fromEntries(
+        statNames.map((key) => [key, String(form.get(key) || "").trim()])
+      );
+      const hasAnyStat = statNames.some((key) => statValues[key] !== "");
+      if (hasAnyStat) {
+        const hasAllStats = statNames.every((key) => statValues[key] !== "");
+        if (!hasAllStats) {
+          throw new Error("Fill all stat fields to update stats.");
         }
-        return Number(value);
-      };
+        payload.stats = Object.fromEntries(
+          statNames.map((key) => [key, Number(statValues[key])])
+        );
+      }
+
       const result = await api(`/api/v1/campaigns/${campaignId}/characters/me`, {
         method: "PUT",
-        body: JSON.stringify({
-          name: form.get("name") || undefined,
-          stats: {
-            might: stat("might"),
-            agility: stat("agility"),
-            mind: stat("mind"),
-            spirit: stat("spirit"),
-            health: stat("health"),
-            stress: stat("stress")
-          }
-        })
+        body: JSON.stringify(payload)
       });
+      populatePlayerCharacterForm(result.character);
       el("player-character-output").textContent = JSON.stringify(
         result.character,
         null,
@@ -549,14 +655,7 @@ function attachPlayerHandlers() {
 
   el("player-load-characters").addEventListener("click", async () => {
     try {
-      const campaignId = currentCampaignId("player");
-      const result = await api(`/api/v1/campaigns/${campaignId}/characters`);
-      el("player-character-output").textContent = JSON.stringify(
-        result.characters,
-        null,
-        2
-      );
-      setStatus("Characters loaded.");
+      await loadPlayerCharacters();
     } catch (error) {
       setStatus(error.message);
     }
@@ -759,7 +858,7 @@ function initialize() {
 }
 
 window.addEventListener("beforeunload", () => {
-  stopRealtimePolling();
+  stopRealtimeStream();
 });
 
 initialize();
