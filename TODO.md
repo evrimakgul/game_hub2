@@ -13,4 +13,17 @@
 - [ ] If/when a second top-level folder is added, create and save a VS Code workspace.
 - [x] Define project scope and first deliverable (`FULL_SCOPE_MAP.md`).
 - [x] Lock full-scope feature decisions from Q&A (`FULL_SCOPE_MAP.md`).
-- [ ] Break first deliverable into small implementation tasks.
+- [x] Break first deliverable into small implementation tasks.
+
+## MVP Build Tasks
+- [x] Scaffold project structure (`apps/api`, `apps/web`) and root workspace scripts.
+- [x] Implement API auth basics (register/login + bearer auth middleware).
+- [x] Implement campaign model (create campaign, invite token, accept invite).
+- [x] Implement role policy (GM sees all sheets, player sees own sheet).
+- [x] Implement fixed character sheet template (MVP v1).
+- [x] Implement D10 success roll endpoint through `RulesetAdapter`.
+- [x] Implement session event feed (rolls + sheet updates + membership events).
+- [x] Implement persistence for save/load continuity between sessions.
+- [x] Build minimal web UI for login, campaign creation, sheet view, and dice rolls.
+- [x] Add automated API tests for core MVP scenarios.
+- [x] Write run/setup instructions in `README.md`.

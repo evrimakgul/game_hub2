@@ -19,3 +19,4 @@ build/
 coverage/
 .tmp/
 temp/
+apps/api/data/*.json

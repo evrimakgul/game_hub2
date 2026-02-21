@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game Hub MVP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Game Hub MVP</h1>
+      <p>Minimal interface for auth, campaigns, sheets, and D10 rolls.</p>
+
+      <section>
+        <h2>Auth</h2>
+        <form id="register-form">
+          <input name="displayName" placeholder="Display name" required />
+          <input name="email" placeholder="Email" required />
+          <input name="password" type="password" placeholder="Password" required />
+          <button type="submit">Register</button>
+        </form>
+        <form id="login-form">
+          <input name="email" placeholder="Email" required />
+          <input name="password" type="password" placeholder="Password" required />
+          <button type="submit">Login</button>
+        </form>
+        <div id="auth-state"></div>
+      </section>
+
+      <section>
+        <h2>Campaigns</h2>
+        <form id="campaign-form">
+          <input name="name" placeholder="Campaign name" required />
+          <button type="submit">Create Campaign</button>
+        </form>
+        <button id="load-campaigns">Load My Campaigns</button>
+        <ul id="campaign-list"></ul>
+      </section>
+
+      <section>
+        <h2>Invite</h2>
+        <form id="invite-form">
+          <input name="email" placeholder="Player email" required />
+          <button type="submit">Create Invite</button>
+        </form>
+        <form id="accept-invite-form">
+          <input name="token" placeholder="Invite token" required />
+          <button type="submit">Accept Invite</button>
+        </form>
+        <div id="invite-output"></div>
+      </section>
+
+      <section>
+        <h2>Character</h2>
+        <form id="character-form">
+          <input name="name" placeholder="Character name" />
+          <input name="might" type="number" min="0" max="10" placeholder="Might" />
+          <input name="agility" type="number" min="0" max="10" placeholder="Agility" />
+          <input name="mind" type="number" min="0" max="10" placeholder="Mind" />
+          <input name="spirit" type="number" min="0" max="10" placeholder="Spirit" />
+          <input name="health" type="number" min="0" max="20" placeholder="Health" />
+          <input name="stress" type="number" min="0" max="20" placeholder="Stress" />
+          <button type="submit">Update My Sheet</button>
+        </form>
+        <button id="load-characters">Load Visible Characters</button>
+        <pre id="character-output"></pre>
+      </section>
+
+      <section>
+        <h2>D10 Roll</h2>
+        <form id="roll-form">
+          <input name="pool" type="number" min="1" max="20" placeholder="Pool" required />
+          <input
+            name="difficulty"
+            type="number"
+            min="2"
+            max="10"
+            placeholder="Difficulty"
+            value="6"
+            required
+          />
+          <input name="label" placeholder="Label" />
+          <button type="submit">Roll</button>
+        </form>
+        <button id="load-events">Load Events</button>
+        <pre id="event-output"></pre>
+      </section>
+
+      <pre id="status"></pre>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

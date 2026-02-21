@@ -1,0 +1,13 @@
+{
+  "name": "game_hub2",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm --workspace @gamehub/api run dev",
+    "start:api": "npm --workspace @gamehub/api run start",
+    "test:api": "npm --workspace @gamehub/api run test"
+  }
+}
