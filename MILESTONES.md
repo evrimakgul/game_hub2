@@ -31,3 +31,16 @@ git switch -c restore/milestone-00 milestone-00-bootstrap
 ```powershell
 git switch -c restore/milestone-01 milestone-01-scope-map
 ```
+
+### milestone-02-full-scope-lock
+- Date: 2026-02-21
+- Commit: `35b4ae4`
+- What was done:
+  - Full-scope Q&A decisions were locked into `FULL_SCOPE_MAP.md`.
+  - End-product direction now includes map, text chat (public/private), animations, and automation in later phases.
+  - Ruleset strategy was finalized: one ruleset per campaign, many rulesets over time, GM ruleset creator as a late milestone.
+  - Async play was left as an open future door, with realtime as primary mode.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-02 milestone-02-full-scope-lock
+```
