@@ -44,3 +44,16 @@ git switch -c restore/milestone-01 milestone-01-scope-map
 ```powershell
 git switch -c restore/milestone-02 milestone-02-full-scope-lock
 ```
+
+### milestone-03-mvp-foundation
+- Date: 2026-02-21
+- Commit: `5a5bee5`
+- What was done:
+  - Implemented MVP foundation code in `apps/api` and `apps/web`.
+  - Added auth, campaign/invite flow, role-based sheet visibility, D10 roll engine, and session event feed.
+  - Added JSON persistence and automated API tests (3 scenario tests passing).
+  - Added workspace package setup and run/test instructions in `README.md`.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-03 milestone-03-mvp-foundation
+```
