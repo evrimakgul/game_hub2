@@ -57,3 +57,16 @@ git switch -c restore/milestone-02 milestone-02-full-scope-lock
 ```powershell
 git switch -c restore/milestone-03 milestone-03-mvp-foundation
 ```
+
+### milestone-04-designer-scope
+- Date: 2026-02-21
+- Commit: `f113f98`
+- What was done:
+  - Locked a new end-product requirement: unified designer toolkit.
+  - Defined two designer capabilities: graphical character-sheet layout design and mechanical rules/mechanics design.
+  - Marked this toolkit as explicitly non-MVP and late-phase.
+  - Added architecture guardrails so this can be added later without rebuilding core modules.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-04 milestone-04-designer-scope
+```
