@@ -148,7 +148,7 @@ git switch -c restore/milestone-10 milestone-10-abc-direction-lock
 
 ### milestone-11-role-flow-ui
 - Date: 2026-02-21
-- Commit: `TBD`
+- Commit: `a6116f7`
 - What was done:
   - Implemented role-based page tree: Connection -> Sign-Up -> Welcome -> Player/Master views.
   - Built separate Player and Master interfaces with role-specific controls.
