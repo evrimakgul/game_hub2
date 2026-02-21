@@ -95,11 +95,11 @@
                 </label>
                 <label>
                   Pronouns
-                  <input name="bioPronouns" placeholder="Layout only (not saved yet)" />
+                  <input name="bioPronouns" placeholder="Local layout draft field" />
                 </label>
                 <label>
                   Archetype
-                  <input name="bioArchetype" placeholder="Layout only (not saved yet)" />
+                  <input name="bioArchetype" placeholder="Local layout draft field" />
                 </label>
               </fieldset>
 
@@ -154,7 +154,7 @@
                   <textarea
                     name="skills"
                     rows="4"
-                    placeholder="Layout only (not saved yet)"
+                    placeholder="Local layout draft field"
                   ></textarea>
                 </label>
               </fieldset>
@@ -166,7 +166,7 @@
                   <textarea
                     name="powers"
                     rows="4"
-                    placeholder="Layout only (not saved yet)"
+                    placeholder="Local layout draft field"
                   ></textarea>
                 </label>
               </fieldset>
@@ -178,7 +178,7 @@
                   <textarea
                     name="equipment"
                     rows="4"
-                    placeholder="Layout only (not saved yet)"
+                    placeholder="Local layout draft field"
                   ></textarea>
                 </label>
               </fieldset>
@@ -190,7 +190,7 @@
                   <textarea
                     name="meritsFlaws"
                     rows="4"
-                    placeholder="Layout only (not saved yet)"
+                    placeholder="Local layout draft field"
                   ></textarea>
                 </label>
               </fieldset>
@@ -202,7 +202,7 @@
                   <textarea
                     name="connections"
                     rows="4"
-                    placeholder="Layout only (not saved yet)"
+                    placeholder="Local layout draft field"
                   ></textarea>
                 </label>
               </fieldset>
@@ -214,7 +214,7 @@
                   <textarea
                     name="inventory"
                     rows="4"
-                    placeholder="Layout only (not saved yet)"
+                    placeholder="Local layout draft field"
                   ></textarea>
                 </label>
               </fieldset>
@@ -228,8 +228,17 @@
               </fieldset>
             </div>
             <p class="muted">
-              MVP save support now: Name, Stats, and Notes. Other sections are layout placeholders.
+              API save: Name, Stats, Notes. Other section fields can be saved locally as layout draft.
             </p>
+            <div class="row">
+              <button id="player-save-layout-draft" type="button" class="ghost">
+                Save Local Layout Draft
+              </button>
+              <button id="player-clear-layout-draft" type="button" class="ghost">
+                Clear Local Layout Draft
+              </button>
+            </div>
+            <div id="player-layout-draft-state" class="muted"></div>
             <button type="submit">Update My Sheet</button>
           </form>
           <button id="player-load-characters" type="button">Load My Visible Characters</button>

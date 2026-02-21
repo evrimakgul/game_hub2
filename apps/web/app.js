@@ -8,6 +8,20 @@ const MASTER_ACTION = {
 
 const MASTER_PASSIVE_STATES = new Set(["idle", "paused", "ended"]);
 const RULESET_DRAFTS_STORAGE_KEY = "gamehub.masterRulesetDrafts.v1";
+const PLAYER_LAYOUT_DRAFTS_STORAGE_KEY = "gamehub.playerLayoutDrafts.v1";
+const PLAYER_LAYOUT_DRAFT_FIELDS = [
+  "bioPronouns",
+  "bioArchetype",
+  "combatInitiative",
+  "combatDefense",
+  "combatArmor",
+  "skills",
+  "powers",
+  "equipment",
+  "meritsFlaws",
+  "connections",
+  "inventory"
+];
 
 const state = {
   token: null,
@@ -24,7 +38,8 @@ const state = {
   masterAction: MASTER_ACTION.HOST,
   masterCampaignFilter: "all",
   masterCampaignCache: [],
-  masterRulesetDrafts: []
+  masterRulesetDrafts: [],
+  playerLayoutDrafts: {}
 };
 
 function el(id) {
@@ -127,6 +142,123 @@ function saveMasterRulesetDrafts() {
   } catch {
     // Ignore storage failures (private mode/quota).
   }
+}
+
+function playerLayoutDraftKey(campaignId, userId) {
+  return `${userId}:${campaignId}`;
+}
+
+function loadPlayerLayoutDrafts() {
+  try {
+    const raw = localStorage.getItem(PLAYER_LAYOUT_DRAFTS_STORAGE_KEY);
+    if (!raw) {
+      state.playerLayoutDrafts = {};
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      state.playerLayoutDrafts = {};
+      return;
+    }
+    state.playerLayoutDrafts = parsed;
+  } catch {
+    state.playerLayoutDrafts = {};
+  }
+}
+
+function savePlayerLayoutDrafts() {
+  try {
+    localStorage.setItem(
+      PLAYER_LAYOUT_DRAFTS_STORAGE_KEY,
+      JSON.stringify(state.playerLayoutDrafts)
+    );
+  } catch {
+    // Ignore storage failures (private mode/quota).
+  }
+}
+
+function currentPlayerLayoutDraftKey() {
+  if (!state.user?.id || !state.selectedCampaignId) {
+    return null;
+  }
+  return playerLayoutDraftKey(state.selectedCampaignId, state.user.id);
+}
+
+function collectPlayerLayoutDraftFields(form) {
+  const draft = {};
+  for (const name of PLAYER_LAYOUT_DRAFT_FIELDS) {
+    draft[name] = String(form.elements.namedItem(name)?.value || "");
+  }
+  return draft;
+}
+
+function applyPlayerLayoutDraftToForm(form, draft) {
+  for (const name of PLAYER_LAYOUT_DRAFT_FIELDS) {
+    setFormValue(form, name, draft?.[name] || "");
+  }
+}
+
+function renderPlayerLayoutDraftState(message = "") {
+  const node = el("player-layout-draft-state");
+  if (!node) {
+    return;
+  }
+  if (!state.selectedCampaignId) {
+    node.textContent = "Local layout draft: select a campaign first.";
+    return;
+  }
+  node.textContent = message || "Local layout draft: ready.";
+}
+
+function loadCurrentPlayerLayoutDraftIntoForm() {
+  const form = el("player-character-form");
+  if (!form) {
+    return;
+  }
+  const key = currentPlayerLayoutDraftKey();
+  if (!key) {
+    applyPlayerLayoutDraftToForm(form, {});
+    renderPlayerLayoutDraftState("Local layout draft: select a campaign first.");
+    return;
+  }
+  const draft = state.playerLayoutDrafts[key];
+  if (!draft) {
+    applyPlayerLayoutDraftToForm(form, {});
+    renderPlayerLayoutDraftState("Local layout draft: none saved yet.");
+    return;
+  }
+  applyPlayerLayoutDraftToForm(form, draft);
+  const savedAt = draft.savedAt ? ` (${formatDate(draft.savedAt)})` : "";
+  renderPlayerLayoutDraftState(`Local layout draft loaded${savedAt}.`);
+}
+
+function saveCurrentPlayerLayoutDraft() {
+  const form = el("player-character-form");
+  const key = currentPlayerLayoutDraftKey();
+  if (!form || !key) {
+    throw new Error("Select a campaign first.");
+  }
+  const fields = collectPlayerLayoutDraftFields(form);
+  state.playerLayoutDrafts[key] = {
+    ...fields,
+    savedAt: new Date().toISOString()
+  };
+  savePlayerLayoutDrafts();
+  renderPlayerLayoutDraftState(
+    `Local layout draft saved (${formatDate(state.playerLayoutDrafts[key].savedAt)}).`
+  );
+}
+
+function clearCurrentPlayerLayoutDraft() {
+  const form = el("player-character-form");
+  const key = currentPlayerLayoutDraftKey();
+  if (!form || !key) {
+    throw new Error("Select a campaign first.");
+  }
+  delete state.playerLayoutDrafts[key];
+  savePlayerLayoutDrafts();
+  applyPlayerLayoutDraftToForm(form, {});
+  renderPlayerLayoutDraftState("Local layout draft cleared.");
 }
 
 function campaignMatchesMasterFilter(campaign) {
@@ -506,6 +638,7 @@ function clearRoleOutputs(prefix) {
   const activeGames = el("master-active-games-list");
   const passiveGames = el("master-passive-games-list");
   const rulesets = el("master-ruleset-usage-list");
+  const playerLayoutState = el("player-layout-draft-state");
   if (summary) summary.textContent = "";
   if (members) members.innerHTML = "";
   if (invites) invites.innerHTML = "";
@@ -517,6 +650,15 @@ function clearRoleOutputs(prefix) {
     if (activeGames) activeGames.innerHTML = "";
     if (passiveGames) passiveGames.innerHTML = "";
     if (rulesets) rulesets.innerHTML = "";
+  }
+  if (prefix === "player") {
+    if (playerLayoutState) {
+      playerLayoutState.textContent = "Local layout draft: select a campaign first.";
+    }
+    const form = el("player-character-form");
+    if (form) {
+      applyPlayerLayoutDraftToForm(form, {});
+    }
   }
   renderChatRecipientOptions(prefix, []);
 }
@@ -854,6 +996,7 @@ function populatePlayerCharacterForm(character) {
   setFormValue(form, "spirit", stats.spirit);
   setFormValue(form, "health", stats.health);
   setFormValue(form, "stress", stats.stress);
+  loadCurrentPlayerLayoutDraftIntoForm();
 }
 
 async function loadPlayerCharacters(silent = false) {
@@ -870,6 +1013,8 @@ async function loadPlayerCharacters(silent = false) {
       result.characters.find((entry) => entry.userId === state.user?.id) ||
       result.characters[0];
     populatePlayerCharacterForm(myCharacter);
+  } else {
+    loadCurrentPlayerLayoutDraftIntoForm();
   }
 
   if (!silent) {
@@ -1042,6 +1187,25 @@ function attachPlayerHandlers() {
     syncChatRecipientState("player")
   );
   syncChatRecipientState("player");
+  renderPlayerLayoutDraftState("Local layout draft: select a campaign first.");
+
+  el("player-save-layout-draft").addEventListener("click", () => {
+    try {
+      saveCurrentPlayerLayoutDraft();
+      setStatus("Local layout draft saved.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-clear-layout-draft").addEventListener("click", () => {
+    try {
+      clearCurrentPlayerLayoutDraft();
+      setStatus("Local layout draft cleared.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
 
   el("player-load-campaigns").addEventListener("click", async () => {
     try {
@@ -1109,6 +1273,7 @@ function attachPlayerHandlers() {
         body: JSON.stringify(payload)
       });
       populatePlayerCharacterForm(result.character);
+      saveCurrentPlayerLayoutDraft();
       el("player-character-output").textContent = JSON.stringify(
         result.character,
         null,
@@ -1370,6 +1535,7 @@ function attachMasterHandlers() {
 
 function initialize() {
   loadMasterRulesetDrafts();
+  loadPlayerLayoutDrafts();
   attachAuthHandlers();
   attachWelcomeHandlers();
   attachPlayerHandlers();

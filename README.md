@@ -8,6 +8,7 @@ Web FRP hub foundation with:
 - private chat recipient picker based on campaign members (Player + Master)
 - master workspace actions (active/passive game views, ruleset usage view, local ruleset drafts)
 - quick event filter buttons (All/Rolls/Session/Character) and selected campaign highlighting
+- local player-sheet layout draft save/load for non-API sections
 - 10-section character sheet layout scaffold (Bio, Combat, Stats, Skills, Powers, Equipment, Merits/Flaws, Connections, Inventory, Notes)
 - D10 success rolls
 - session event feed
