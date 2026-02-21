@@ -45,3 +45,11 @@
 ## Next Tasks
 - [ ] Complete MVP validation by running 2 full real sessions with your group.
 - [ ] Replace polling with server-push realtime updates (WebSocket or SSE).
+
+## Direction-Locked Implementation Tasks
+- [x] Lock A/B/C direction decisions in project docs (`A_B_C_DIRECTION_LOCK.md`).
+- [ ] Build role-based page flow: Connection -> Sign-Up Info -> Welcome -> Player/Master branches.
+- [ ] Implement separate Player and Master views.
+- [ ] Build Master Dashboard shell with locked options.
+- [ ] Start character sheet redesign by adding the 10 locked sections (layout first).
+- [ ] Keep D10 baseline mechanics (`roll >= difficulty`, count successes) while preparing extension hooks.

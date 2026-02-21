@@ -93,3 +93,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Polling should stay active after campaign selection and never depend on status element presence."
 - Terms to re-teach: polling timer, null-safe UI hooks.
 - Preferred pace/format: immediate bug fix + quick retest steps.
+- Date: 2026-02-21
+- Topic: Pre-implementation direction alignment
+- What was unclear: Need to lock page-flow, character-sheet structure, and mechanics direction before continuing feature expansion.
+- Simpler wording to use next time: "Lock direction docs first, then implement."
+- Terms to re-teach: role-based flow, branch pages, direction lock.
+- Preferred pace/format: clear tree + section list + baseline mechanic rules.

@@ -102,3 +102,6 @@ Before any new add-on/mechanic/system change, classify it first:
 - Designer
 
 Then implement only within that boundary, or define a new boundary intentionally.
+
+## 9) Direction Lock References
+- A/B/C direction lock for current phase: `A_B_C_DIRECTION_LOCK.md`
