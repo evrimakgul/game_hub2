@@ -10,6 +10,7 @@ Web FRP hub foundation with:
 - master ruleset drafts support edit, duplicate, and JSON preview
 - quick event filter buttons (All/Rolls/Session/Character) and selected campaign highlighting
 - local player-sheet layout draft save/load for non-API sections
+- session timeline panel combining events + chat with source and text filters
 - 10-section character sheet layout scaffold (Bio, Combat, Stats, Skills, Powers, Equipment, Merits/Flaws, Connections, Inventory, Notes)
 - D10 success rolls
 - session event feed

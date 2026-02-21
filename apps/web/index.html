@@ -322,6 +322,21 @@
           </div>
           <pre id="player-chat-output"></pre>
         </section>
+
+        <section class="card">
+          <h3>Session Timeline</h3>
+          <div class="row">
+            <select id="player-timeline-source-filter">
+              <option value="ALL">all</option>
+              <option value="EVENT">events only</option>
+              <option value="CHAT">chat only</option>
+            </select>
+            <input id="player-timeline-search" placeholder="search timeline text" />
+            <input id="player-timeline-limit" type="number" min="1" max="200" value="80" />
+            <button id="player-load-timeline" type="button">Load Timeline</button>
+          </div>
+          <pre id="player-timeline-output"></pre>
+        </section>
       </section>
 
       <section class="page" data-page="master">
@@ -523,6 +538,21 @@
             <button id="master-load-chat" type="button">Load Chat</button>
           </div>
           <pre id="master-chat-output"></pre>
+        </section>
+
+        <section class="card">
+          <h3>Session Timeline</h3>
+          <div class="row">
+            <select id="master-timeline-source-filter">
+              <option value="ALL">all</option>
+              <option value="EVENT">events only</option>
+              <option value="CHAT">chat only</option>
+            </select>
+            <input id="master-timeline-search" placeholder="search timeline text" />
+            <input id="master-timeline-limit" type="number" min="1" max="200" value="80" />
+            <button id="master-load-timeline" type="button">Load Timeline</button>
+          </div>
+          <pre id="master-timeline-output"></pre>
         </section>
       </section>
 

@@ -811,6 +811,7 @@ function clearRoleOutputs(prefix) {
   const invites = el(`${prefix}-invites-output`);
   const events = el(`${prefix}-events-output`);
   const chat = el(`${prefix}-chat-output`);
+  const timeline = el(`${prefix}-timeline-output`);
   const inviteOut = el(`${prefix}-invite-output`);
   const chars = el(`${prefix}-character-output`);
   const activeGames = el("master-active-games-list");
@@ -822,6 +823,7 @@ function clearRoleOutputs(prefix) {
   if (invites) invites.innerHTML = "";
   if (events) events.textContent = "";
   if (chat) chat.textContent = "";
+  if (timeline) timeline.textContent = "";
   if (inviteOut) inviteOut.textContent = "";
   if (chars) chars.textContent = "";
   if (prefix === "master") {
@@ -919,6 +921,44 @@ function formatChat(entry) {
   return `[${formatDate(entry.createdAt)}] [PUBLIC] ${entry.senderDisplayName}: ${entry.text}`;
 }
 
+function timelineLimit(prefix) {
+  const raw = Number(el(`${prefix}-timeline-limit`)?.value || 80);
+  if (!Number.isInteger(raw)) {
+    return 80;
+  }
+  return Math.max(1, Math.min(200, raw));
+}
+
+function timelineSource(prefix) {
+  return String(el(`${prefix}-timeline-source-filter`)?.value || "ALL")
+    .trim()
+    .toUpperCase();
+}
+
+function timelineSearch(prefix) {
+  return String(el(`${prefix}-timeline-search`)?.value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function buildTimelineEntries(events = [], messages = []) {
+  const eventEntries = events.map((entry) => ({
+    source: "EVENT",
+    createdAt: entry.createdAt,
+    line: `[EVENT] ${formatEvent(entry)}`
+  }));
+
+  const chatEntries = messages.map((entry) => ({
+    source: "CHAT",
+    createdAt: entry.createdAt,
+    line: `[CHAT] ${formatChat(entry)}`
+  }));
+
+  return [...eventEntries, ...chatEntries].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+}
+
 function stopRealtimeStream() {
   if (state.realtimeSource) {
     state.realtimeSource.close();
@@ -943,7 +983,8 @@ async function refreshRealtimeSilently(prefix = state.realtimePrefix) {
   try {
     await Promise.all([
       loadEvents(prefix, true),
-      loadChatMessages(prefix, true)
+      loadChatMessages(prefix, true),
+      loadTimeline(prefix, true)
     ]);
   } catch {
     // Keep stream alive on transient refresh failures.
@@ -1253,10 +1294,37 @@ async function loadChatMessages(prefix, silent = false) {
   }
 }
 
+async function loadTimeline(prefix, silent = false) {
+  const campaignId = currentCampaignId(prefix);
+  const limit = timelineLimit(prefix);
+  const sourceFilter = timelineSource(prefix);
+  const search = timelineSearch(prefix);
+
+  const [eventResult, chatResult] = await Promise.all([
+    api(`/api/v1/campaigns/${campaignId}/events?limit=${limit}`),
+    api(`/api/v1/campaigns/${campaignId}/chat/messages?limit=${limit}`)
+  ]);
+
+  const merged = buildTimelineEntries(
+    eventResult.events || [],
+    chatResult.messages || []
+  )
+    .filter((entry) => sourceFilter === "ALL" || entry.source === sourceFilter)
+    .filter((entry) => !search || entry.line.toLowerCase().includes(search));
+
+  el(`${prefix}-timeline-output`).textContent =
+    merged.length > 0 ? merged.map((entry) => entry.line).join("\n") : "No timeline entries.";
+
+  if (!silent) {
+    setStatus("Timeline refreshed.");
+  }
+}
+
 async function refreshRoleData(prefix) {
   await loadSummary(prefix);
   await loadEvents(prefix, true);
   await loadChatMessages(prefix, true);
+  await loadTimeline(prefix, true);
   if (prefix === "player") {
     await loadPlayerCharacters(true);
   }
@@ -1367,6 +1435,29 @@ function attachPlayerHandlers() {
   );
   syncChatRecipientState("player");
   renderPlayerLayoutDraftState("Local layout draft: select a campaign first.");
+
+  el("player-load-timeline").addEventListener("click", async () => {
+    try {
+      await loadTimeline("player");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  el("player-timeline-source-filter").addEventListener("change", async () => {
+    try {
+      await loadTimeline("player", true);
+    } catch {}
+  });
+  el("player-timeline-search").addEventListener("input", async () => {
+    try {
+      await loadTimeline("player", true);
+    } catch {}
+  });
+  el("player-timeline-limit").addEventListener("change", async () => {
+    try {
+      await loadTimeline("player", true);
+    } catch {}
+  });
 
   el("player-save-layout-draft").addEventListener("click", () => {
     try {
@@ -1548,6 +1639,29 @@ function attachMasterHandlers() {
     syncChatRecipientState("master")
   );
   syncChatRecipientState("master");
+
+  el("master-load-timeline").addEventListener("click", async () => {
+    try {
+      await loadTimeline("master");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  el("master-timeline-source-filter").addEventListener("change", async () => {
+    try {
+      await loadTimeline("master", true);
+    } catch {}
+  });
+  el("master-timeline-search").addEventListener("input", async () => {
+    try {
+      await loadTimeline("master", true);
+    } catch {}
+  });
+  el("master-timeline-limit").addEventListener("change", async () => {
+    try {
+      await loadTimeline("master", true);
+    } catch {}
+  });
 
   for (const button of document.querySelectorAll("[data-master-action]")) {
     button.addEventListener("click", async () => {

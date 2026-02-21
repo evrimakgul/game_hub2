@@ -228,6 +228,11 @@ pre {
   max-height: 260px;
 }
 
+#player-timeline-output,
+#master-timeline-output {
+  max-height: 300px;
+}
+
 .hidden {
   display: none !important;
 }
