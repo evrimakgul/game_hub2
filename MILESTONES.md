@@ -82,3 +82,16 @@ git switch -c restore/milestone-04 milestone-04-designer-scope
 ```powershell
 git switch -c restore/milestone-05 milestone-05-session-controls
 ```
+
+### milestone-06-dashboard-flow
+- Date: 2026-02-21
+- Commit: `bed1b32`
+- What was done:
+  - Added campaign summary endpoint and dashboard view for selected campaign.
+  - Improved invite flow clarity with token/expiry display and pending invite visibility.
+  - Added event feed filters (`type`, `since`, `limit`) and cleaner event presentation in UI.
+  - Added API test coverage for summary visibility and event type filtering.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-06 milestone-06-dashboard-flow
+```
