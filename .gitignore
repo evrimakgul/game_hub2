@@ -1,0 +1,21 @@
+# Ignore OS/editor noise
+.DS_Store
+Thumbs.db
+
+# VS Code local workspace settings
+.vscode/
+
+# Environment secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# Build/cache artifacts
+node_modules/
+dist/
+build/
+coverage/
+.tmp/
+temp/
