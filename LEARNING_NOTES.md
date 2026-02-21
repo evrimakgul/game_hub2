@@ -51,3 +51,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "I do local setup now; you do one-time GitHub repo creation/auth; then we follow daily commit + milestone tag routine."
 - Terms to re-teach: remote, origin, tag, rollback.
 - Preferred pace/format: checklist with execute-now actions.
+- Date: 2026-02-21
+- Topic: GitHub new repository form choices
+- What was unclear: Which options to select (visibility, README, gitignore, license) before creating repo.
+- Simpler wording to use next time: "Create empty repo; keep README/gitignore/license off when local repo already exists."
+- Terms to re-teach: empty repo, first push, conflict.
+- Preferred pace/format: exact option values + next single action.

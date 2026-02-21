@@ -2,7 +2,7 @@
 
 ## Current
 - [x] Initialize local Git repository (`main` branch).
-- [ ] Create GitHub repository and add `origin` remote.
+- [x] Create GitHub repository and add `origin` remote.
 - [ ] Push `main` to GitHub.
 - [ ] Commit and push at least once per day.
 - [ ] Create milestone tags at key checkpoints.
