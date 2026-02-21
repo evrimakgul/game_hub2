@@ -120,3 +120,15 @@ git switch -c restore/milestone-07 milestone-07-chat-basics
 ```powershell
 git switch -c restore/milestone-08 milestone-08-live-polling
 ```
+
+### milestone-09-polling-fix
+- Date: 2026-02-21
+- Commit: `TBD`
+- What was done:
+  - Fixed auto-refresh reliability so live updates do not silently stop.
+  - Removed unnecessary polling restarts during summary refreshes.
+  - Added null-safe UI handling for auto-refresh status rendering.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-09 milestone-09-polling-fix
+```

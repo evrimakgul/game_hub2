@@ -87,3 +87,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "One future designer studio for visual sheet design + mechanical rules design."
 - Terms to re-teach: schema-driven, computed field, mechanical designer.
 - Preferred pace/format: lock requirement in scope docs before implementation.
+- Date: 2026-02-21
+- Topic: Live updates reliability
+- What was unclear: Auto-refresh appeared to work first, then stopped for dice/chat without manual load.
+- Simpler wording to use next time: "Polling should stay active after campaign selection and never depend on status element presence."
+- Terms to re-teach: polling timer, null-safe UI hooks.
+- Preferred pace/format: immediate bug fix + quick retest steps.

@@ -14,6 +14,7 @@
 - [x] Create dashboard flow milestone tag (`milestone-06-dashboard-flow`).
 - [x] Create chat basics milestone tag (`milestone-07-chat-basics`).
 - [x] Create live polling milestone tag (`milestone-08-live-polling`).
+- [ ] Create polling reliability milestone tag (`milestone-09-polling-fix`).
 - [x] Lock unified designer toolkit as end-product scope (`FULL_SCOPE_MAP.md`).
 - [x] Create milestone tracking file with plain-language summaries (`MILESTONES.md`).
 - [ ] Create milestone tags at key checkpoints.

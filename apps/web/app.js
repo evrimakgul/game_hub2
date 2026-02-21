@@ -68,6 +68,9 @@ function formatDate(iso) {
 
 function renderCampaignState() {
   const node = document.querySelector("#campaign-state");
+  if (!node) {
+    return;
+  }
   if (!state.campaignId) {
     node.textContent = "No campaign selected.";
     return;
@@ -79,6 +82,9 @@ function renderCampaignState() {
 
 function renderAutoRefreshState() {
   const node = document.querySelector("#auto-refresh-state");
+  if (!node) {
+    return;
+  }
   if (!state.token) {
     node.textContent = "Auto-refresh: off (login first).";
     return;
@@ -118,10 +124,13 @@ function stopRealtimePolling() {
   renderAutoRefreshState();
 }
 
-function startRealtimePolling() {
-  stopRealtimePolling();
-
+function ensureRealtimePolling() {
   if (!state.token || !state.campaignId) {
+    stopRealtimePolling();
+    return;
+  }
+  if (state.pollTimerId) {
+    renderAutoRefreshState();
     return;
   }
 
@@ -134,11 +143,16 @@ function startRealtimePolling() {
 }
 
 function clearCampaignDashboard() {
-  document.querySelector("#campaign-summary-output").textContent = "";
-  document.querySelector("#campaign-members").innerHTML = "";
-  document.querySelector("#campaign-invites").innerHTML = "";
-  document.querySelector("#event-output").textContent = "";
-  document.querySelector("#chat-output").textContent = "";
+  const summary = document.querySelector("#campaign-summary-output");
+  const members = document.querySelector("#campaign-members");
+  const invites = document.querySelector("#campaign-invites");
+  const events = document.querySelector("#event-output");
+  const chat = document.querySelector("#chat-output");
+  if (summary) summary.textContent = "";
+  if (members) members.innerHTML = "";
+  if (invites) invites.innerHTML = "";
+  if (events) events.textContent = "";
+  if (chat) chat.textContent = "";
   state.lastEventTimestamp = null;
   state.lastChatTimestamp = null;
   stopRealtimePolling();
@@ -187,14 +201,17 @@ function renderInviteList(invites = [], pendingInvitesCount = 0) {
 }
 
 function setSelectedCampaign(campaign) {
+  const previousCampaignId = state.campaignId;
   state.campaignId = campaign.id;
   state.campaignName = campaign.name;
   state.campaignState = campaign.sessionState || "idle";
   state.campaignRole = campaign.role || state.campaignRole;
-  state.lastEventTimestamp = null;
-  state.lastChatTimestamp = null;
+  if (previousCampaignId !== state.campaignId) {
+    state.lastEventTimestamp = null;
+    state.lastChatTimestamp = null;
+  }
   renderCampaignState();
-  startRealtimePolling();
+  ensureRealtimePolling();
 }
 
 function eventQueryPath() {
@@ -252,7 +269,11 @@ async function loadCampaignSummary() {
   const campaignId = getCampaignIdOrFail();
   const summary = await api(`/api/v1/campaigns/${campaignId}/summary`);
 
-  setSelectedCampaign(summary.campaign);
+  state.campaignName = summary.campaign.name;
+  state.campaignState = summary.campaign.sessionState || state.campaignState;
+  state.campaignRole = summary.campaign.role || state.campaignRole;
+  renderCampaignState();
+  ensureRealtimePolling();
   document.querySelector("#campaign-summary-output").textContent = JSON.stringify(
     {
       campaign: summary.campaign.name,
@@ -313,7 +334,7 @@ document.querySelector("#register-form").addEventListener("submit", async (event
     state.token = result.token;
     state.user = result.user;
     document.querySelector("#auth-state").textContent = `Logged in as ${result.user.displayName}`;
-    renderAutoRefreshState();
+    ensureRealtimePolling();
     setStatus("Registered and logged in.");
   } catch (error) {
     setStatus(error.message);
@@ -336,7 +357,7 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
     state.token = result.token;
     state.user = result.user;
     document.querySelector("#auth-state").textContent = `Logged in as ${result.user.displayName}`;
-    renderAutoRefreshState();
+    ensureRealtimePolling();
     setStatus("Logged in.");
   } catch (error) {
     setStatus(error.message);
