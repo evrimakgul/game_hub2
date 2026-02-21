@@ -41,6 +41,7 @@ npm run test:api
 - `POST /api/v1/auth/login`
 - `POST /api/v1/campaigns`
 - `GET /api/v1/campaigns`
+- `GET /api/v1/campaigns/:campaignId/summary`
 - `POST /api/v1/campaigns/:campaignId/invites`
 - `POST /api/v1/invites/accept`
 - `GET /api/v1/campaigns/:campaignId/characters`
@@ -49,3 +50,8 @@ npm run test:api
 - `POST /api/v1/campaigns/:campaignId/rolls`
 - `GET /api/v1/campaigns/:campaignId/events`
 - `POST /api/v1/campaigns/:campaignId/session/state`
+
+Event feed query options:
+- `type` (single or comma-separated event types)
+- `since` (epoch ms or ISO timestamp)
+- `limit` (1-200)

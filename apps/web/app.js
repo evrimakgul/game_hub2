@@ -3,7 +3,9 @@ const state = {
   user: null,
   campaignId: null,
   campaignName: null,
-  campaignState: null
+  campaignState: null,
+  campaignRole: null,
+  lastEventTimestamp: null
 };
 
 function setStatus(message, payload) {
@@ -42,29 +44,145 @@ function getCampaignIdOrFail() {
   return state.campaignId;
 }
 
+function numberOrUndefined(value) {
+  if (value === "" || value === undefined || value === null) {
+    return undefined;
+  }
+  return Number(value);
+}
+
+function formatDate(iso) {
+  if (!iso) {
+    return "";
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return String(iso);
+  }
+  return date.toLocaleString();
+}
+
 function renderCampaignState() {
   const node = document.querySelector("#campaign-state");
   if (!state.campaignId) {
     node.textContent = "No campaign selected.";
     return;
   }
-  node.textContent = `Selected: ${state.campaignName || state.campaignId} | Session: ${
-    state.campaignState || "unknown"
-  }`;
+  node.textContent = `Selected: ${state.campaignName || state.campaignId} | Role: ${
+    state.campaignRole || "unknown"
+  } | Session: ${state.campaignState || "unknown"}`;
+}
+
+function clearCampaignDashboard() {
+  document.querySelector("#campaign-summary-output").textContent = "";
+  document.querySelector("#campaign-members").innerHTML = "";
+  document.querySelector("#campaign-invites").innerHTML = "";
+  document.querySelector("#event-output").textContent = "";
+  state.lastEventTimestamp = null;
+}
+
+function renderMemberList(members = []) {
+  const node = document.querySelector("#campaign-members");
+  node.innerHTML = "";
+
+  if (members.length === 0) {
+    node.innerHTML = "<li>No members yet.</li>";
+    return;
+  }
+
+  for (const member of members) {
+    const item = document.createElement("li");
+    const emailText = member.email ? ` | ${member.email}` : "";
+    item.textContent = `${member.displayName} (${member.role})${emailText}`;
+    node.appendChild(item);
+  }
+}
+
+function renderInviteList(invites = [], pendingInvitesCount = 0) {
+  const node = document.querySelector("#campaign-invites");
+  node.innerHTML = "";
+
+  if (state.campaignRole !== "GM") {
+    node.innerHTML = `<li>Hidden for player role. Pending count: ${pendingInvitesCount}</li>`;
+    return;
+  }
+
+  if (invites.length === 0) {
+    node.innerHTML = "<li>No pending invites.</li>";
+    return;
+  }
+
+  for (const invite of invites) {
+    const item = document.createElement("li");
+    item.textContent = `${invite.email} | token: ${invite.token} | expires: ${formatDate(
+      invite.expiresAt
+    )}`;
+    node.appendChild(item);
+  }
 }
 
 function setSelectedCampaign(campaign) {
   state.campaignId = campaign.id;
   state.campaignName = campaign.name;
   state.campaignState = campaign.sessionState || "idle";
+  state.campaignRole = campaign.role || state.campaignRole;
+  state.lastEventTimestamp = null;
   renderCampaignState();
 }
 
-function numberOrUndefined(value) {
-  if (value === "" || value === undefined || value === null) {
-    return undefined;
+function eventQueryPath() {
+  const campaignId = getCampaignIdOrFail();
+  const params = new URLSearchParams();
+  const type = String(document.querySelector("#event-type-filter").value || "").trim();
+  const limit = String(document.querySelector("#event-limit").value || "50").trim();
+
+  if (type) {
+    params.set("type", type);
   }
-  return Number(value);
+  if (limit) {
+    params.set("limit", limit);
+  }
+  return `/api/v1/campaigns/${campaignId}/events?${params.toString()}`;
+}
+
+function formatEvent(event) {
+  const actor = event.actorUserId || "unknown-user";
+  const created = formatDate(event.createdAt);
+  const payload = event.payload ? JSON.stringify(event.payload) : "{}";
+  return `[${created}] ${event.type} by ${actor} -> ${payload}`;
+}
+
+async function loadCampaignSummary() {
+  const campaignId = getCampaignIdOrFail();
+  const summary = await api(`/api/v1/campaigns/${campaignId}/summary`);
+
+  setSelectedCampaign(summary.campaign);
+  document.querySelector("#campaign-summary-output").textContent = JSON.stringify(
+    {
+      campaign: summary.campaign.name,
+      role: summary.campaign.role,
+      ruleset: summary.campaign.rulesetId,
+      sessionState: summary.campaign.sessionState,
+      memberCount: summary.memberCount,
+      pendingInvitesCount: summary.pendingInvitesCount
+    },
+    null,
+    2
+  );
+  renderMemberList(summary.members);
+  renderInviteList(summary.pendingInvites, summary.pendingInvitesCount);
+}
+
+async function loadEvents() {
+  const result = await api(eventQueryPath());
+  const events = result.events || [];
+  const lines = events.length > 0 ? events.map(formatEvent).join("\n") : "No events.";
+  document.querySelector("#event-output").textContent = lines;
+
+  if (events.length > 0) {
+    const last = events[events.length - 1];
+    state.lastEventTimestamp = last.createdAt || state.lastEventTimestamp;
+  }
 }
 
 document.querySelector("#register-form").addEventListener("submit", async (event) => {
@@ -122,6 +240,8 @@ document.querySelector("#campaign-form").addEventListener("submit", async (event
       body: JSON.stringify({ name: form.get("name") })
     });
     setSelectedCampaign(result.campaign);
+    await loadCampaignSummary();
+    await loadEvents();
     setStatus(`Campaign created and selected: ${result.campaign.name}`);
   } catch (error) {
     setStatus(error.message);
@@ -137,14 +257,33 @@ document.querySelector("#load-campaigns").addEventListener("click", async () => 
     for (const campaign of result.campaigns) {
       const item = document.createElement("li");
       const button = document.createElement("button");
-      button.textContent = `${campaign.name} (${campaign.role})`;
-      button.addEventListener("click", () => {
-        setSelectedCampaign(campaign);
-        setStatus(`Selected campaign: ${campaign.name}`);
+      button.textContent = `${campaign.name} (${campaign.role}) | session: ${campaign.sessionState}`;
+      button.addEventListener("click", async () => {
+        try {
+          setSelectedCampaign(campaign);
+          await loadCampaignSummary();
+          await loadEvents();
+          setStatus(`Selected campaign: ${campaign.name}`);
+        } catch (error) {
+          setStatus(error.message);
+        }
       });
       item.appendChild(button);
       list.appendChild(item);
     }
+
+    if (result.campaigns.length === 0) {
+      list.innerHTML = "<li>No campaigns yet.</li>";
+    }
+  } catch (error) {
+    setStatus(error.message);
+  }
+});
+
+document.querySelector("#refresh-summary").addEventListener("click", async () => {
+  try {
+    await loadCampaignSummary();
+    setStatus("Campaign dashboard refreshed.");
   } catch (error) {
     setStatus(error.message);
   }
@@ -160,7 +299,12 @@ document.querySelector("#invite-form").addEventListener("submit", async (event) 
       method: "POST",
       body: JSON.stringify({ email: form.get("email") })
     });
-    document.querySelector("#invite-output").textContent = `Invite token: ${result.invite.token}`;
+    document.querySelector("#invite-output").textContent =
+      `Invite created for ${result.invite.email}\n` +
+      `Token: ${result.invite.token}\n` +
+      `Expires: ${formatDate(result.invite.expiresAt)}`;
+    await loadCampaignSummary();
+    await loadEvents();
     setStatus("Invite created.");
   } catch (error) {
     setStatus(error.message);
@@ -178,7 +322,7 @@ document
         method: "POST",
         body: JSON.stringify({ token: form.get("token") })
       });
-      setStatus("Invite accepted.");
+      setStatus("Invite accepted. Load campaigns and select one.");
     } catch (error) {
       setStatus(error.message);
     }
@@ -199,6 +343,8 @@ document
 
       state.campaignState = result.campaign.sessionState;
       renderCampaignState();
+      await loadCampaignSummary();
+      await loadEvents();
       setStatus("Session state updated.", { sessionState: state.campaignState });
     } catch (error) {
       setStatus(error.message);
@@ -232,6 +378,7 @@ document
         null,
         2
       );
+      await loadEvents();
       setStatus("Character updated.");
     } catch (error) {
       setStatus(error.message);
@@ -266,6 +413,7 @@ document.querySelector("#roll-form").addEventListener("submit", async (event) =>
         label: form.get("label") || ""
       })
     });
+    await loadEvents();
     setStatus("Roll completed.", result.result);
   } catch (error) {
     setStatus(error.message);
@@ -274,17 +422,12 @@ document.querySelector("#roll-form").addEventListener("submit", async (event) =>
 
 document.querySelector("#load-events").addEventListener("click", async () => {
   try {
-    const campaignId = getCampaignIdOrFail();
-    const result = await api(`/api/v1/campaigns/${campaignId}/events`);
-    document.querySelector("#event-output").textContent = JSON.stringify(
-      result.events,
-      null,
-      2
-    );
+    await loadEvents();
   } catch (error) {
     setStatus(error.message);
   }
 });
 
 renderCampaignState();
+clearCampaignDashboard();
 setStatus("Ready. Register or login first.");

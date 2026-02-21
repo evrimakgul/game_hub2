@@ -27,7 +27,20 @@ section {
   padding: 16px;
 }
 
+.hint {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #36516b;
+}
+
 form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -64,4 +77,8 @@ pre {
 ul {
   margin: 0;
   padding-left: 20px;
+}
+
+h3 {
+  margin-bottom: 6px;
 }

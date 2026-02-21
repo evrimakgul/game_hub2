@@ -34,8 +34,18 @@
           <button type="submit">Create Campaign</button>
         </form>
         <button id="load-campaigns">Load My Campaigns</button>
-        <div id="campaign-state"></div>
+        <div id="campaign-state" class="hint"></div>
         <ul id="campaign-list"></ul>
+      </section>
+
+      <section>
+        <h2>Campaign Dashboard</h2>
+        <button id="refresh-summary">Refresh Dashboard</button>
+        <pre id="campaign-summary-output"></pre>
+        <h3>Members</h3>
+        <ul id="campaign-members"></ul>
+        <h3>Pending Invites (GM View)</h3>
+        <ul id="campaign-invites"></ul>
       </section>
 
       <section>
@@ -96,7 +106,18 @@
           <input name="label" placeholder="Label" />
           <button type="submit">Roll</button>
         </form>
-        <button id="load-events">Load Events</button>
+        <div class="row">
+          <select id="event-type-filter">
+            <option value="">all event types</option>
+            <option value="DICE_ROLLED">DICE_ROLLED</option>
+            <option value="SESSION_STATE_CHANGED">SESSION_STATE_CHANGED</option>
+            <option value="CHARACTER_UPDATED">CHARACTER_UPDATED</option>
+            <option value="PLAYER_INVITED">PLAYER_INVITED</option>
+            <option value="PLAYER_JOINED">PLAYER_JOINED</option>
+          </select>
+          <input id="event-limit" type="number" min="1" max="200" value="50" />
+          <button id="load-events" type="button">Load Events</button>
+        </div>
         <pre id="event-output"></pre>
       </section>
 

@@ -77,6 +77,12 @@ describe("MVP API scenarios", () => {
       .send({ token: invite.body.invite.token });
     expect(accept.status).toBe(200);
 
+    const extraInvite = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/invites`)
+      .set(authHeader(gm.token))
+      .send({ email: "futurefriend@example.com" });
+    expect(extraInvite.status).toBe(201);
+
     const gmCharacters = await request(app)
       .get(`/api/v1/campaigns/${campaignId}/characters`)
       .set(authHeader(gm.token));
@@ -106,6 +112,23 @@ describe("MVP API scenarios", () => {
       .get(`/api/v1/campaigns/${campaignId}/characters/${gmCharacter.id}`)
       .set(authHeader(player.token));
     expect(playerCannotSeeGm.status).toBe(403);
+
+    const gmSummary = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/summary`)
+      .set(authHeader(gm.token));
+    expect(gmSummary.status).toBe(200);
+    expect(gmSummary.body.memberCount).toBe(2);
+    expect(gmSummary.body.pendingInvitesCount).toBe(1);
+    expect(gmSummary.body.pendingInvites).toHaveLength(1);
+    expect(gmSummary.body.pendingInvites[0].token).toBeTypeOf("string");
+
+    const playerSummary = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/summary`)
+      .set(authHeader(player.token));
+    expect(playerSummary.status).toBe(200);
+    expect(playerSummary.body.memberCount).toBe(2);
+    expect(playerSummary.body.pendingInvitesCount).toBe(1);
+    expect(playerSummary.body.pendingInvites).toHaveLength(0);
   });
 
   it("D10 roll returns success model and feed includes roll event", async () => {
@@ -153,6 +176,15 @@ describe("MVP API scenarios", () => {
     expect(events.status).toBe(200);
     expect(
       events.body.events.some((entry) => entry.type === "DICE_ROLLED")
+    ).toBe(true);
+
+    const filtered = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/events?type=DICE_ROLLED`)
+      .set(authHeader(gm.token));
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.events.length).toBeGreaterThan(0);
+    expect(
+      filtered.body.events.every((entry) => entry.type === "DICE_ROLLED")
     ).toBe(true);
   });
 

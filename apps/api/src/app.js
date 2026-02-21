@@ -49,6 +49,59 @@ function sanitizeCampaign(campaign, role) {
   };
 }
 
+function buildCampaignSummary(data, campaign, membership) {
+  const activeMemberships = data.memberships.filter(
+    (entry) =>
+      entry.campaignId === campaign.id &&
+      entry.status === "ACTIVE"
+  );
+  const userById = new Map(data.users.map((user) => [user.id, user]));
+  const gmView = isGm(membership);
+
+  const members = activeMemberships
+    .map((entry) => {
+      const user = userById.get(entry.userId);
+      return {
+        userId: entry.userId,
+        displayName: user?.displayName || "Unknown",
+        role: entry.role,
+        joinedAt: entry.createdAt,
+        ...(gmView ? { email: user?.email || null } : {})
+      };
+    })
+    .sort((a, b) => {
+      if (a.role === b.role) {
+        return a.displayName.localeCompare(b.displayName);
+      }
+      return a.role === "GM" ? -1 : 1;
+    });
+
+  const pendingInviteRows = data.invites
+    .filter(
+      (entry) =>
+        entry.campaignId === campaign.id &&
+        entry.status === "PENDING" &&
+        new Date(entry.expiresAt).getTime() >= Date.now()
+    )
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return {
+    campaign: sanitizeCampaign(campaign, membership.role),
+    memberCount: members.length,
+    members,
+    pendingInvitesCount: pendingInviteRows.length,
+    pendingInvites: gmView
+      ? pendingInviteRows.map((entry) => ({
+          id: entry.id,
+          email: entry.email,
+          token: entry.token,
+          createdAt: entry.createdAt,
+          expiresAt: entry.expiresAt
+        }))
+      : []
+  };
+}
+
 function createDefaultCharacterSheet({ campaignId, userId, displayName }) {
   return {
     id: createId(),
@@ -272,6 +325,26 @@ export function createApp(options = {}) {
         .filter(Boolean);
 
       res.json({ campaigns });
+    })
+  );
+
+  app.get(
+    "/api/v1/campaigns/:campaignId/summary",
+    auth.requireAuth,
+    asyncHandler(async (req, res) => {
+      const data = store.read();
+      const campaignId = req.params.campaignId;
+      const campaign = data.campaigns.find((entry) => entry.id === campaignId);
+      if (!campaign) {
+        throw httpError(404, "Campaign not found.");
+      }
+
+      const membership = findMembership(data, campaignId, req.user.id);
+      if (!membership) {
+        throw httpError(403, "Campaign access denied.");
+      }
+
+      res.json(buildCampaignSummary(data, campaign, membership));
     })
   );
 
@@ -582,6 +655,32 @@ export function createApp(options = {}) {
       const limit = Number.isInteger(limitRaw)
         ? Math.max(1, Math.min(200, limitRaw))
         : 50;
+      const typeRaw = String(req.query.type || "").trim();
+      const typeFilter = typeRaw
+        ? new Set(
+            typeRaw
+              .split(",")
+              .map((entry) => entry.trim())
+              .filter(Boolean)
+          )
+        : null;
+      const sinceRaw = String(req.query.since || "").trim();
+      let sinceTimestamp = null;
+      if (sinceRaw) {
+        const numeric = Number(sinceRaw);
+        if (Number.isFinite(numeric)) {
+          sinceTimestamp = numeric;
+        } else {
+          const parsed = Date.parse(sinceRaw);
+          if (Number.isNaN(parsed)) {
+            throw httpError(
+              400,
+              "Invalid 'since' value. Use epoch milliseconds or ISO date."
+            );
+          }
+          sinceTimestamp = parsed;
+        }
+      }
 
       const membership = findMembership(data, campaignId, req.user.id);
       if (!membership) {
@@ -590,6 +689,15 @@ export function createApp(options = {}) {
 
       const events = data.sessionEvents
         .filter((entry) => entry.campaignId === campaignId)
+        .filter(
+          (entry) =>
+            !typeFilter || typeFilter.has(String(entry.type || "").trim())
+        )
+        .filter(
+          (entry) =>
+            sinceTimestamp === null ||
+            new Date(entry.createdAt).getTime() > sinceTimestamp
+        )
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
       res.json({ events: events.slice(-limit) });
