@@ -43,11 +43,21 @@ MVP is successful when one campaign (4-8 players) can run at least 2 full live s
 - End state includes GM/DM ruleset creation toolkit.
 9. Data and Ownership
 - Players can export their own data/sheets.
+10. Unified Designer Toolkit (End Product, Not MVP)
+- One design toolset should manage both ruleset design and character sheet design.
+- Graphical sheet designer:
+  - fields, boxes, grouping, sizing, positioning, and shapes
+  - computed field display layout
+- Mechanical designer:
+  - field relationships and computed fields
+  - new rules, spells, and combat mechanics definitions
+  - reusable mechanics blocks that GMs/DMs can compose
 
 ## 4) Scope Constraints and Non-Goals
 - Security level target: basic (not enterprise-grade initially).
 - Mobile app is optional, not required for scope success.
 - Performance target is practical for friend-group scale, not hyperscale.
+- Unified designer toolkit is explicitly a late-phase scope item, not MVP.
 
 ## 5) Scale Target (Near-to-Mid Horizon)
 - Several active campaigns is expected.
@@ -62,6 +72,8 @@ MVP is successful when one campaign (4-8 players) can run at least 2 full live s
 - Keep character template/rendering separate from rules calculation.
 - Keep API contracts versionable to avoid breaking future clients.
 - Keep async compatibility door open by storing timestamped session events and resumable state.
+- Keep character sheet rendering schema-driven so the future graphical designer can control layout.
+- Keep rules/mechanics definitions data-driven so the future mechanical designer can add/update behavior.
 
 ## 7) Delivery Strategy by Phases
 1. MVP Phase
@@ -74,6 +86,9 @@ MVP is successful when one campaign (4-8 players) can run at least 2 full live s
 - Encounter/NPC/combat management depth and map-linked control.
 5. Ruleset Expansion Phase
 - Additional rulesets and GM ruleset creation toolkit.
+6. Designer Toolkit Phase (Late)
+- Unified visual + mechanical designer for sheet/ruleset authoring.
+- Validation, preview, and safe publish workflow for GM-created designs.
 
 ## 8) Change-Safety Rule
 Before any new add-on/mechanic/system change, classify it first:
@@ -84,5 +99,6 @@ Before any new add-on/mechanic/system change, classify it first:
 - Ruleset
 - Map/Visual
 - Chat
+- Designer
 
 Then implement only within that boundary, or define a new boundary intentionally.

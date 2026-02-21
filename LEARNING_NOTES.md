@@ -81,3 +81,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Before coding, I will ask full-scope questions and lock decisions."
 - Terms to re-teach: scope discovery, decision lock.
 - Preferred pace/format: short numbered questions with direct answer slots.
+- Date: 2026-02-21
+- Topic: End-product designer toolkit requirement
+- What was unclear: Need to explicitly include unified design tooling for both character sheet layout and rules/mechanics authoring.
+- Simpler wording to use next time: "One future designer studio for visual sheet design + mechanical rules design."
+- Terms to re-teach: schema-driven, computed field, mechanical designer.
+- Preferred pace/format: lock requirement in scope docs before implementation.

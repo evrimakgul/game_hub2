@@ -9,6 +9,7 @@
 - [x] Create planning milestone tag (`milestone-01-scope-map`).
 - [x] Create full-scope lock milestone tag (`milestone-02-full-scope-lock`).
 - [x] Create MVP foundation milestone tag (`milestone-03-mvp-foundation`).
+- [x] Lock unified designer toolkit as end-product scope (`FULL_SCOPE_MAP.md`).
 - [x] Create milestone tracking file with plain-language summaries (`MILESTONES.md`).
 - [ ] Create milestone tags at key checkpoints.
 - [ ] If/when a second top-level folder is added, create and save a VS Code workspace.
