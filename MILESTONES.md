@@ -158,3 +158,17 @@ git switch -c restore/milestone-10 milestone-10-abc-direction-lock
 ```powershell
 git switch -c restore/milestone-11 milestone-11-role-flow-ui
 ```
+
+### milestone-12-sse-sheet-validation
+- Date: 2026-02-21
+- Commit: `8d30f2d`
+- What was done:
+  - Added 10-section character sheet layout scaffold in Player view.
+  - Replaced polling with SSE server-push realtime updates for events/chat.
+  - Added stricter API roll validation (`pool`/`difficulty`) with clear 400-level errors and tests.
+  - Added `MVP_SESSION_VALIDATION_CHECKLIST.md` for 2 real-session MVP validation.
+  - Marked `some_images/` as intentionally untracked in `.gitignore`.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-12 milestone-12-sse-sheet-validation
+```
