@@ -448,6 +448,7 @@ function clearRoleOutputs(prefix) {
     if (passiveGames) passiveGames.innerHTML = "";
     if (rulesets) rulesets.innerHTML = "";
   }
+  renderChatRecipientOptions(prefix, []);
 }
 
 function signOut() {
@@ -708,6 +709,56 @@ function renderInvites(prefix, pendingInvites = [], pendingCount = 0) {
   }
 }
 
+function syncChatRecipientState(prefix) {
+  const form = el(`${prefix}-chat-form`);
+  if (!form) {
+    return;
+  }
+  const visibilityField = form.elements.namedItem("visibility");
+  const recipientField = form.elements.namedItem("recipientUserId");
+  if (!visibilityField || !recipientField) {
+    return;
+  }
+
+  const visibility = String(visibilityField.value || "PUBLIC").toUpperCase();
+  const isPrivate = visibility === "PRIVATE";
+  recipientField.disabled = !isPrivate;
+  recipientField.required = isPrivate;
+  if (!isPrivate) {
+    recipientField.value = "";
+  }
+}
+
+function renderChatRecipientOptions(prefix, members = []) {
+  const form = el(`${prefix}-chat-form`);
+  if (!form) {
+    return;
+  }
+  const recipientField = form.elements.namedItem("recipientUserId");
+  if (!recipientField) {
+    return;
+  }
+
+  const previousValue = String(recipientField.value || "").trim();
+  recipientField.innerHTML =
+    '<option value="">private recipient (select member)</option>';
+
+  for (const member of members) {
+    if (!member || member.userId === state.user?.id) {
+      continue;
+    }
+    const option = document.createElement("option");
+    option.value = member.userId;
+    option.textContent = `${member.displayName} (${member.role})`;
+    recipientField.appendChild(option);
+  }
+
+  if (previousValue) {
+    recipientField.value = previousValue;
+  }
+  syncChatRecipientState(prefix);
+}
+
 function setFormValue(form, name, value) {
   const field = form.elements.namedItem(name);
   if (!field) {
@@ -778,6 +829,7 @@ async function loadSummary(prefix) {
   );
   renderMembers(prefix, summary.members);
   renderInvites(prefix, summary.pendingInvites, summary.pendingInvitesCount);
+  renderChatRecipientOptions(prefix, summary.members);
 }
 
 async function loadEvents(prefix, silent = false) {
@@ -910,6 +962,12 @@ function attachWelcomeHandlers() {
 function attachPlayerHandlers() {
   el("player-back-welcome").addEventListener("click", () => showPage("welcome"));
   el("player-logout").addEventListener("click", signOut);
+  const playerChatForm = el("player-chat-form");
+  const playerChatVisibility = playerChatForm?.elements?.namedItem("visibility");
+  playerChatVisibility?.addEventListener("change", () =>
+    syncChatRecipientState("player")
+  );
+  syncChatRecipientState("player");
 
   el("player-load-campaigns").addEventListener("click", async () => {
     try {
@@ -1036,7 +1094,10 @@ function attachPlayerHandlers() {
         text: String(form.get("text") || "").trim(),
         visibility
       };
-      if (visibility === "PRIVATE" && recipientUserId) {
+      if (visibility === "PRIVATE" && !recipientUserId) {
+        throw new Error("Select a recipient for a private message.");
+      }
+      if (visibility === "PRIVATE") {
         body.recipientUserIds = [recipientUserId];
       }
       const result = await api(`/api/v1/campaigns/${campaignId}/chat/messages`, {
@@ -1062,6 +1123,12 @@ function attachPlayerHandlers() {
 function attachMasterHandlers() {
   el("master-back-welcome").addEventListener("click", () => showPage("welcome"));
   el("master-logout").addEventListener("click", signOut);
+  const masterChatForm = el("master-chat-form");
+  const masterChatVisibility = masterChatForm?.elements?.namedItem("visibility");
+  masterChatVisibility?.addEventListener("change", () =>
+    syncChatRecipientState("master")
+  );
+  syncChatRecipientState("master");
 
   for (const button of document.querySelectorAll("[data-master-action]")) {
     button.addEventListener("click", async () => {
@@ -1200,7 +1267,10 @@ function attachMasterHandlers() {
         text: String(form.get("text") || "").trim(),
         visibility
       };
-      if (visibility === "PRIVATE" && recipientUserId) {
+      if (visibility === "PRIVATE" && !recipientUserId) {
+        throw new Error("Select a recipient for a private message.");
+      }
+      if (visibility === "PRIVATE") {
         body.recipientUserIds = [recipientUserId];
       }
       const result = await api(`/api/v1/campaigns/${campaignId}/chat/messages`, {

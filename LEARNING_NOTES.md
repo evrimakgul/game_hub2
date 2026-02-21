@@ -110,3 +110,9 @@ Use this file to adapt explanations over time.
 - What was unclear: What exact task to do now and what "run 2 real sessions" means in practice.
 - Which terms need simpler definitions: MVP validation, session checklist, PASS/FAIL item.
 - What teaching pace worked best: one direct action first, then 3 short steps.
+- Date: 2026-02-21
+- Topic: Delivery workflow preference
+- What was unclear: Assistant asked for permission to commit/push after implementation.
+- Simpler wording to use next time: "I will commit and push automatically after completing development tasks."
+- Terms to re-teach: none.
+- Preferred pace/format: execute directly; no commit/push confirmation question.
