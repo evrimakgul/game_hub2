@@ -57,3 +57,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Create empty repo; keep README/gitignore/license off when local repo already exists."
 - Terms to re-teach: empty repo, first push, conflict.
 - Preferred pace/format: exact option values + next single action.
+- Date: 2026-02-21
+- Topic: After GitHub repo creation
+- What was unclear: Immediate next step after creating remote repo page.
+- Simpler wording to use next time: "Send URL; I will connect remote and push for you."
+- Terms to re-teach: origin, upstream tracking.
+- Preferred pace/format: one action now + I execute the rest.
