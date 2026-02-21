@@ -121,6 +121,32 @@
         <pre id="event-output"></pre>
       </section>
 
+      <section>
+        <h2>Text Chat</h2>
+        <form id="chat-form">
+          <select name="visibility">
+            <option value="PUBLIC">public</option>
+            <option value="PRIVATE">private</option>
+          </select>
+          <input
+            name="recipientUserId"
+            placeholder="private recipient userId (optional)"
+          />
+          <input name="text" placeholder="chat message" required />
+          <button type="submit">Send Message</button>
+        </form>
+        <div class="row">
+          <select id="chat-visibility-filter">
+            <option value="">all</option>
+            <option value="PUBLIC">public</option>
+            <option value="PRIVATE">private</option>
+          </select>
+          <input id="chat-limit" type="number" min="1" max="200" value="50" />
+          <button id="load-chat" type="button">Load Chat</button>
+        </div>
+        <pre id="chat-output"></pre>
+      </section>
+
       <pre id="status"></pre>
     </main>
 

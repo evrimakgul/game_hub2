@@ -49,6 +49,54 @@ function sanitizeCampaign(campaign, role) {
   };
 }
 
+function parseSinceTimestamp(sinceRaw) {
+  if (!sinceRaw) {
+    return null;
+  }
+  const numeric = Number(sinceRaw);
+  if (Number.isFinite(numeric)) {
+    return numeric;
+  }
+  const parsed = Date.parse(sinceRaw);
+  if (Number.isNaN(parsed)) {
+    throw httpError(
+      400,
+      "Invalid 'since' value. Use epoch milliseconds or ISO date."
+    );
+  }
+  return parsed;
+}
+
+function canReadChatMessage(message, userId) {
+  if (message.visibility === "PUBLIC") {
+    return true;
+  }
+  return (
+    message.senderUserId === userId ||
+    Array.isArray(message.recipientUserIds) &&
+      message.recipientUserIds.includes(userId)
+  );
+}
+
+function sanitizeChatMessage(message, userById) {
+  const sender = userById.get(message.senderUserId);
+  const recipientNames = (message.recipientUserIds || [])
+    .map((userId) => userById.get(userId)?.displayName || "Unknown")
+    .filter(Boolean);
+
+  return {
+    id: message.id,
+    campaignId: message.campaignId,
+    senderUserId: message.senderUserId,
+    senderDisplayName: sender?.displayName || "Unknown",
+    visibility: message.visibility,
+    recipientUserIds: message.recipientUserIds || [],
+    recipientNames,
+    text: message.text,
+    createdAt: message.createdAt
+  };
+}
+
 function buildCampaignSummary(data, campaign, membership) {
   const activeMemberships = data.memberships.filter(
     (entry) =>
@@ -665,22 +713,7 @@ export function createApp(options = {}) {
           )
         : null;
       const sinceRaw = String(req.query.since || "").trim();
-      let sinceTimestamp = null;
-      if (sinceRaw) {
-        const numeric = Number(sinceRaw);
-        if (Number.isFinite(numeric)) {
-          sinceTimestamp = numeric;
-        } else {
-          const parsed = Date.parse(sinceRaw);
-          if (Number.isNaN(parsed)) {
-            throw httpError(
-              400,
-              "Invalid 'since' value. Use epoch milliseconds or ISO date."
-            );
-          }
-          sinceTimestamp = parsed;
-        }
-      }
+      const sinceTimestamp = parseSinceTimestamp(sinceRaw);
 
       const membership = findMembership(data, campaignId, req.user.id);
       if (!membership) {
@@ -701,6 +734,153 @@ export function createApp(options = {}) {
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
       res.json({ events: events.slice(-limit) });
+    })
+  );
+
+  app.post(
+    "/api/v1/campaigns/:campaignId/chat/messages",
+    auth.requireAuth,
+    asyncHandler(async (req, res) => {
+      const campaignId = req.params.campaignId;
+      const text = String(req.body.text || "").trim();
+      const visibility = String(req.body.visibility || "PUBLIC")
+        .trim()
+        .toUpperCase();
+      const rawRecipientIds = Array.isArray(req.body.recipientUserIds)
+        ? req.body.recipientUserIds
+        : [];
+
+      if (!text) {
+        throw httpError(400, "Chat message text is required.");
+      }
+      if (text.length > 1000) {
+        throw httpError(400, "Chat message text must be <= 1000 characters.");
+      }
+      if (!new Set(["PUBLIC", "PRIVATE"]).has(visibility)) {
+        throw httpError(400, "Visibility must be PUBLIC or PRIVATE.");
+      }
+
+      const message = store.update((data) => {
+        const campaign = data.campaigns.find((entry) => entry.id === campaignId);
+        if (!campaign) {
+          throw httpError(404, "Campaign not found.");
+        }
+
+        const membership = findMembership(data, campaignId, req.user.id);
+        if (!membership) {
+          throw httpError(403, "Campaign access denied.");
+        }
+
+        let recipientUserIds = [];
+        if (visibility === "PRIVATE") {
+          recipientUserIds = [
+            ...new Set(
+              rawRecipientIds
+                .map((value) => String(value || "").trim())
+                .filter(Boolean)
+            )
+          ].filter((userId) => userId !== req.user.id);
+
+          if (recipientUserIds.length < 1) {
+            throw httpError(
+              400,
+              "Private message requires at least one recipient user ID."
+            );
+          }
+
+          for (const recipientUserId of recipientUserIds) {
+            const recipientMembership = findMembership(
+              data,
+              campaignId,
+              recipientUserId
+            );
+            if (!recipientMembership) {
+              throw httpError(
+                400,
+                `Recipient '${recipientUserId}' is not in this campaign.`
+              );
+            }
+          }
+        }
+
+        const nextMessage = {
+          id: createId(),
+          campaignId,
+          senderUserId: req.user.id,
+          visibility,
+          recipientUserIds,
+          text,
+          createdAt: new Date().toISOString()
+        };
+
+        data.chatMessages.push(nextMessage);
+        if (visibility === "PUBLIC") {
+          addEvent(data, {
+            campaignId,
+            type: "CHAT_MESSAGE_PUBLIC",
+            actorUserId: req.user.id,
+            payload: {
+              messageId: nextMessage.id
+            }
+          });
+        }
+        return nextMessage;
+      });
+
+      const data = store.read();
+      const userById = new Map(data.users.map((entry) => [entry.id, entry]));
+      res.status(201).json({
+        message: sanitizeChatMessage(message, userById)
+      });
+    })
+  );
+
+  app.get(
+    "/api/v1/campaigns/:campaignId/chat/messages",
+    auth.requireAuth,
+    asyncHandler(async (req, res) => {
+      const data = store.read();
+      const campaignId = req.params.campaignId;
+      const limitRaw = Number(req.query.limit || 50);
+      const limit = Number.isInteger(limitRaw)
+        ? Math.max(1, Math.min(200, limitRaw))
+        : 50;
+      const sinceTimestamp = parseSinceTimestamp(
+        String(req.query.since || "").trim()
+      );
+      const visibilityFilter = String(req.query.visibility || "")
+        .trim()
+        .toUpperCase();
+      if (
+        visibilityFilter &&
+        !new Set(["PUBLIC", "PRIVATE"]).has(visibilityFilter)
+      ) {
+        throw httpError(400, "Visibility filter must be PUBLIC or PRIVATE.");
+      }
+
+      const membership = findMembership(data, campaignId, req.user.id);
+      if (!membership) {
+        throw httpError(403, "Campaign access denied.");
+      }
+
+      const userById = new Map(data.users.map((entry) => [entry.id, entry]));
+      const messages = data.chatMessages
+        .filter((entry) => entry.campaignId === campaignId)
+        .filter((entry) => canReadChatMessage(entry, req.user.id))
+        .filter(
+          (entry) =>
+            !visibilityFilter || entry.visibility === visibilityFilter
+        )
+        .filter(
+          (entry) =>
+            sinceTimestamp === null ||
+            new Date(entry.createdAt).getTime() > sinceTimestamp
+        )
+        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .slice(-limit)
+        .map((entry) => sanitizeChatMessage(entry, userById));
+
+      res.json({ messages });
     })
   );
 

@@ -5,7 +5,8 @@ const state = {
   campaignName: null,
   campaignState: null,
   campaignRole: null,
-  lastEventTimestamp: null
+  lastEventTimestamp: null,
+  lastChatTimestamp: null
 };
 
 function setStatus(message, payload) {
@@ -78,7 +79,9 @@ function clearCampaignDashboard() {
   document.querySelector("#campaign-members").innerHTML = "";
   document.querySelector("#campaign-invites").innerHTML = "";
   document.querySelector("#event-output").textContent = "";
+  document.querySelector("#chat-output").textContent = "";
   state.lastEventTimestamp = null;
+  state.lastChatTimestamp = null;
 }
 
 function renderMemberList(members = []) {
@@ -93,7 +96,9 @@ function renderMemberList(members = []) {
   for (const member of members) {
     const item = document.createElement("li");
     const emailText = member.email ? ` | ${member.email}` : "";
-    item.textContent = `${member.displayName} (${member.role})${emailText}`;
+    item.textContent =
+      `${member.displayName} (${member.role})` +
+      `${emailText} | userId: ${member.userId}`;
     node.appendChild(item);
   }
 }
@@ -127,6 +132,7 @@ function setSelectedCampaign(campaign) {
   state.campaignState = campaign.sessionState || "idle";
   state.campaignRole = campaign.role || state.campaignRole;
   state.lastEventTimestamp = null;
+  state.lastChatTimestamp = null;
   renderCampaignState();
 }
 
@@ -150,6 +156,35 @@ function formatEvent(event) {
   const created = formatDate(event.createdAt);
   const payload = event.payload ? JSON.stringify(event.payload) : "{}";
   return `[${created}] ${event.type} by ${actor} -> ${payload}`;
+}
+
+function chatQueryPath() {
+  const campaignId = getCampaignIdOrFail();
+  const params = new URLSearchParams();
+  const visibility = String(
+    document.querySelector("#chat-visibility-filter").value || ""
+  ).trim();
+  const limit = String(document.querySelector("#chat-limit").value || "50").trim();
+
+  if (visibility) {
+    params.set("visibility", visibility);
+  }
+  if (limit) {
+    params.set("limit", limit);
+  }
+  return `/api/v1/campaigns/${campaignId}/chat/messages?${params.toString()}`;
+}
+
+function formatChatMessage(message) {
+  const created = formatDate(message.createdAt);
+  const sender = message.senderDisplayName || message.senderUserId || "unknown";
+  if (message.visibility === "PRIVATE") {
+    const recipients = message.recipientNames?.length
+      ? message.recipientNames.join(", ")
+      : message.recipientUserIds.join(", ");
+    return `[${created}] [PRIVATE] ${sender} -> ${recipients}: ${message.text}`;
+  }
+  return `[${created}] [PUBLIC] ${sender}: ${message.text}`;
 }
 
 async function loadCampaignSummary() {
@@ -182,6 +217,21 @@ async function loadEvents() {
   if (events.length > 0) {
     const last = events[events.length - 1];
     state.lastEventTimestamp = last.createdAt || state.lastEventTimestamp;
+  }
+}
+
+async function loadChatMessages() {
+  const result = await api(chatQueryPath());
+  const messages = result.messages || [];
+  const lines =
+    messages.length > 0
+      ? messages.map((message) => formatChatMessage(message)).join("\n")
+      : "No chat messages.";
+  document.querySelector("#chat-output").textContent = lines;
+
+  if (messages.length > 0) {
+    const last = messages[messages.length - 1];
+    state.lastChatTimestamp = last.createdAt || state.lastChatTimestamp;
   }
 }
 
@@ -242,6 +292,7 @@ document.querySelector("#campaign-form").addEventListener("submit", async (event
     setSelectedCampaign(result.campaign);
     await loadCampaignSummary();
     await loadEvents();
+    await loadChatMessages();
     setStatus(`Campaign created and selected: ${result.campaign.name}`);
   } catch (error) {
     setStatus(error.message);
@@ -263,6 +314,7 @@ document.querySelector("#load-campaigns").addEventListener("click", async () => 
           setSelectedCampaign(campaign);
           await loadCampaignSummary();
           await loadEvents();
+          await loadChatMessages();
           setStatus(`Selected campaign: ${campaign.name}`);
         } catch (error) {
           setStatus(error.message);
@@ -283,6 +335,7 @@ document.querySelector("#load-campaigns").addEventListener("click", async () => 
 document.querySelector("#refresh-summary").addEventListener("click", async () => {
   try {
     await loadCampaignSummary();
+    await loadChatMessages();
     setStatus("Campaign dashboard refreshed.");
   } catch (error) {
     setStatus(error.message);
@@ -305,6 +358,7 @@ document.querySelector("#invite-form").addEventListener("submit", async (event) 
       `Expires: ${formatDate(result.invite.expiresAt)}`;
     await loadCampaignSummary();
     await loadEvents();
+    await loadChatMessages();
     setStatus("Invite created.");
   } catch (error) {
     setStatus(error.message);
@@ -345,6 +399,7 @@ document
       renderCampaignState();
       await loadCampaignSummary();
       await loadEvents();
+      await loadChatMessages();
       setStatus("Session state updated.", { sessionState: state.campaignState });
     } catch (error) {
       setStatus(error.message);
@@ -379,6 +434,7 @@ document
         2
       );
       await loadEvents();
+      await loadChatMessages();
       setStatus("Character updated.");
     } catch (error) {
       setStatus(error.message);
@@ -414,7 +470,46 @@ document.querySelector("#roll-form").addEventListener("submit", async (event) =>
       })
     });
     await loadEvents();
+    await loadChatMessages();
     setStatus("Roll completed.", result.result);
+  } catch (error) {
+    setStatus(error.message);
+  }
+});
+
+document.querySelector("#chat-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.target);
+
+  try {
+    const campaignId = getCampaignIdOrFail();
+    const visibility = String(form.get("visibility") || "PUBLIC").toUpperCase();
+    const recipientUserId = String(form.get("recipientUserId") || "").trim();
+
+    const body = {
+      text: String(form.get("text") || "").trim(),
+      visibility
+    };
+
+    if (visibility === "PRIVATE" && recipientUserId) {
+      body.recipientUserIds = [recipientUserId];
+    }
+
+    const result = await api(`/api/v1/campaigns/${campaignId}/chat/messages`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+
+    await loadChatMessages();
+    setStatus("Chat message sent.", result.message);
+  } catch (error) {
+    setStatus(error.message);
+  }
+});
+
+document.querySelector("#load-chat").addEventListener("click", async () => {
+  try {
+    await loadChatMessages();
   } catch (error) {
     setStatus(error.message);
   }

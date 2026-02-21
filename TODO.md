@@ -36,3 +36,4 @@
 ## MVP Polishing Tasks
 - [x] Add GM session-state control flow (UI + API test coverage + route docs).
 - [x] Improve campaign dashboard flow (summary API, member/invite visibility, event filtering).
+- [x] Add basic text chat (public/private) with access-safe API and UI.

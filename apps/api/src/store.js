@@ -13,7 +13,8 @@ function createDefaultData() {
     memberships: [],
     invites: [],
     characterSheets: [],
-    sessionEvents: []
+    sessionEvents: [],
+    chatMessages: []
   };
 }
 
@@ -52,7 +53,31 @@ export class JsonStore {
       return;
     }
 
-    this.data = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    const defaults = createDefaultData();
+    this.data = {
+      ...defaults,
+      ...parsed,
+      meta: {
+        ...defaults.meta,
+        ...(parsed.meta || {})
+      }
+    };
+
+    // Backward-compatible normalization for older store snapshots.
+    for (const key of [
+      "users",
+      "campaigns",
+      "memberships",
+      "invites",
+      "characterSheets",
+      "sessionEvents",
+      "chatMessages"
+    ]) {
+      if (!Array.isArray(this.data[key])) {
+        this.data[key] = [];
+      }
+    }
   }
 
   #save() {

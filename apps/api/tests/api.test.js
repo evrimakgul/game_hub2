@@ -270,4 +270,115 @@ describe("MVP API scenarios", () => {
       )
     ).toBe(true);
   });
+
+  it("Chat supports public and private visibility rules", async () => {
+    const gm = await register(app, {
+      displayName: "GM Chat",
+      email: "gm-chat@example.com",
+      password: "secret12"
+    });
+    const playerA = await register(app, {
+      displayName: "Player A",
+      email: "player-a@example.com",
+      password: "secret12"
+    });
+    const playerB = await register(app, {
+      displayName: "Player B",
+      email: "player-b@example.com",
+      password: "secret12"
+    });
+
+    const createCampaign = await request(app)
+      .post("/api/v1/campaigns")
+      .set(authHeader(gm.token))
+      .send({ name: "Chat Realm" });
+    const campaignId = createCampaign.body.campaign.id;
+
+    const inviteA = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/invites`)
+      .set(authHeader(gm.token))
+      .send({ email: "player-a@example.com" });
+    const inviteB = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/invites`)
+      .set(authHeader(gm.token))
+      .send({ email: "player-b@example.com" });
+
+    await request(app)
+      .post("/api/v1/invites/accept")
+      .set(authHeader(playerA.token))
+      .send({ token: inviteA.body.invite.token });
+    await request(app)
+      .post("/api/v1/invites/accept")
+      .set(authHeader(playerB.token))
+      .send({ token: inviteB.body.invite.token });
+
+    const gmSummary = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/summary`)
+      .set(authHeader(gm.token));
+    const gmUser = gmSummary.body.members.find((entry) => entry.role === "GM");
+    const playerBUser = gmSummary.body.members.find(
+      (entry) => entry.displayName === "Player B"
+    );
+
+    const publicMsg = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/chat/messages`)
+      .set(authHeader(playerA.token))
+      .send({
+        text: "Hello party",
+        visibility: "PUBLIC"
+      });
+    expect(publicMsg.status).toBe(201);
+
+    const privateMsg = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/chat/messages`)
+      .set(authHeader(playerA.token))
+      .send({
+        text: "Secret to GM",
+        visibility: "PRIVATE",
+        recipientUserIds: [gmUser.userId]
+      });
+    expect(privateMsg.status).toBe(201);
+
+    const privateInvalidRecipient = await request(app)
+      .post(`/api/v1/campaigns/${campaignId}/chat/messages`)
+      .set(authHeader(playerA.token))
+      .send({
+        text: "Bad secret",
+        visibility: "PRIVATE",
+        recipientUserIds: ["not-a-member"]
+      });
+    expect(privateInvalidRecipient.status).toBe(400);
+
+    const gmView = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/chat/messages`)
+      .set(authHeader(gm.token));
+    expect(gmView.status).toBe(200);
+    expect(gmView.body.messages).toHaveLength(2);
+
+    const playerBView = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/chat/messages`)
+      .set(authHeader(playerB.token));
+    expect(playerBView.status).toBe(200);
+    expect(playerBView.body.messages).toHaveLength(1);
+    expect(playerBView.body.messages[0].text).toBe("Hello party");
+
+    const privateOnlyForPlayerB = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/chat/messages?visibility=PRIVATE`)
+      .set(authHeader(playerB.token));
+    expect(privateOnlyForPlayerB.status).toBe(200);
+    expect(privateOnlyForPlayerB.body.messages).toHaveLength(0);
+
+    const privateOnlyForGm = await request(app)
+      .get(`/api/v1/campaigns/${campaignId}/chat/messages?visibility=PRIVATE`)
+      .set(authHeader(gm.token));
+    expect(privateOnlyForGm.status).toBe(200);
+    expect(privateOnlyForGm.body.messages).toHaveLength(1);
+    expect(privateOnlyForGm.body.messages[0].recipientUserIds).toContain(
+      gmUser.userId
+    );
+    expect(privateOnlyForGm.body.messages[0].senderDisplayName).toBe("Player A");
+    expect(privateOnlyForGm.body.messages[0].recipientUserIds).not.toContain(
+      playerBUser.userId
+    );
+  });
 });

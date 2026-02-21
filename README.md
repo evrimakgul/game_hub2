@@ -49,9 +49,16 @@ npm run test:api
 - `PUT /api/v1/campaigns/:campaignId/characters/me`
 - `POST /api/v1/campaigns/:campaignId/rolls`
 - `GET /api/v1/campaigns/:campaignId/events`
+- `POST /api/v1/campaigns/:campaignId/chat/messages`
+- `GET /api/v1/campaigns/:campaignId/chat/messages`
 - `POST /api/v1/campaigns/:campaignId/session/state`
 
 Event feed query options:
 - `type` (single or comma-separated event types)
+- `since` (epoch ms or ISO timestamp)
+- `limit` (1-200)
+
+Chat query options:
+- `visibility` (`PUBLIC` or `PRIVATE`)
 - `since` (epoch ms or ISO timestamp)
 - `limit` (1-200)
