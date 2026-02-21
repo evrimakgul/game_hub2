@@ -14,7 +14,7 @@
 - [x] Lock unified designer toolkit as end-product scope (`FULL_SCOPE_MAP.md`).
 - [x] Create milestone tracking file with plain-language summaries (`MILESTONES.md`).
 - [ ] Create milestone tags at key checkpoints.
-- [ ] If/when a second top-level folder is added, create and save a VS Code workspace.
+- [x] If/when a second top-level folder is added, create and save a VS Code workspace.
 - [x] Define project scope and first deliverable (`FULL_SCOPE_MAP.md`).
 - [x] Lock full-scope feature decisions from Q&A (`FULL_SCOPE_MAP.md`).
 - [x] Break first deliverable into small implementation tasks.
