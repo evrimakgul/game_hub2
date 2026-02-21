@@ -10,6 +10,7 @@
 - [x] Create full-scope lock milestone tag (`milestone-02-full-scope-lock`).
 - [x] Create MVP foundation milestone tag (`milestone-03-mvp-foundation`).
 - [x] Create designer scope milestone tag (`milestone-04-designer-scope`).
+- [x] Create session controls milestone tag (`milestone-05-session-controls`).
 - [x] Lock unified designer toolkit as end-product scope (`FULL_SCOPE_MAP.md`).
 - [x] Create milestone tracking file with plain-language summaries (`MILESTONES.md`).
 - [ ] Create milestone tags at key checkpoints.

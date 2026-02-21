@@ -70,3 +70,15 @@ git switch -c restore/milestone-03 milestone-03-mvp-foundation
 ```powershell
 git switch -c restore/milestone-04 milestone-04-designer-scope
 ```
+
+### milestone-05-session-controls
+- Date: 2026-02-21
+- Commit: `a3c1f3a`
+- What was done:
+  - Added session state controls to the web UI (idle/active/paused/ended).
+  - Added API test that confirms only GM can change session state.
+  - Added route list in `README.md` for easier API navigation.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-05 milestone-05-session-controls
+```
