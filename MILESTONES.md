@@ -95,3 +95,16 @@ git switch -c restore/milestone-05 milestone-05-session-controls
 ```powershell
 git switch -c restore/milestone-06 milestone-06-dashboard-flow
 ```
+
+### milestone-07-chat-basics
+- Date: 2026-02-21
+- Commit: `e8f9ec8`
+- What was done:
+  - Added text chat API with public and private message visibility.
+  - Added access-safe chat retrieval (users only see private messages they are part of).
+  - Added chat UI to send messages and load chat history with visibility filter.
+  - Added API test coverage for private/public chat privacy rules.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-07 milestone-07-chat-basics
+```

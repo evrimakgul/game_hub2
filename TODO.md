@@ -12,6 +12,7 @@
 - [x] Create designer scope milestone tag (`milestone-04-designer-scope`).
 - [x] Create session controls milestone tag (`milestone-05-session-controls`).
 - [x] Create dashboard flow milestone tag (`milestone-06-dashboard-flow`).
+- [x] Create chat basics milestone tag (`milestone-07-chat-basics`).
 - [x] Lock unified designer toolkit as end-product scope (`FULL_SCOPE_MAP.md`).
 - [x] Create milestone tracking file with plain-language summaries (`MILESTONES.md`).
 - [ ] Create milestone tags at key checkpoints.
