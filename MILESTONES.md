@@ -132,3 +132,16 @@ git switch -c restore/milestone-08 milestone-08-live-polling
 ```powershell
 git switch -c restore/milestone-09 milestone-09-polling-fix
 ```
+
+### milestone-10-abc-direction-lock
+- Date: 2026-02-21
+- Commit: `14a34fc`
+- What was done:
+  - Locked page-flow direction (Connection -> Sign-Up -> Welcome -> Player/Master branches).
+  - Locked Master Dashboard option set.
+  - Locked character sheet target sections and D10 baseline mechanic direction.
+  - Added implementation-ready direction tasks to TODO.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-10 milestone-10-abc-direction-lock
+```
