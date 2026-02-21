@@ -13,6 +13,7 @@
 - [x] Create session controls milestone tag (`milestone-05-session-controls`).
 - [x] Create dashboard flow milestone tag (`milestone-06-dashboard-flow`).
 - [x] Create chat basics milestone tag (`milestone-07-chat-basics`).
+- [ ] Create live polling milestone tag (`milestone-08-live-polling`).
 - [x] Lock unified designer toolkit as end-product scope (`FULL_SCOPE_MAP.md`).
 - [x] Create milestone tracking file with plain-language summaries (`MILESTONES.md`).
 - [ ] Create milestone tags at key checkpoints.
@@ -38,3 +39,4 @@
 - [x] Add GM session-state control flow (UI + API test coverage + route docs).
 - [x] Improve campaign dashboard flow (summary API, member/invite visibility, event filtering).
 - [x] Add basic text chat (public/private) with access-safe API and UI.
+- [x] Add auto-refresh polling for events/chat during live sessions.

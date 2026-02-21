@@ -6,7 +6,10 @@ const state = {
   campaignState: null,
   campaignRole: null,
   lastEventTimestamp: null,
-  lastChatTimestamp: null
+  lastChatTimestamp: null,
+  pollTimerId: null,
+  pollInFlight: false,
+  pollIntervalMs: 2000
 };
 
 function setStatus(message, payload) {
@@ -74,6 +77,62 @@ function renderCampaignState() {
   } | Session: ${state.campaignState || "unknown"}`;
 }
 
+function renderAutoRefreshState() {
+  const node = document.querySelector("#auto-refresh-state");
+  if (!state.token) {
+    node.textContent = "Auto-refresh: off (login first).";
+    return;
+  }
+  if (!state.campaignId) {
+    node.textContent = "Auto-refresh: off (select campaign first).";
+    return;
+  }
+  if (state.pollTimerId) {
+    node.textContent = `Auto-refresh: on (${state.pollIntervalMs / 1000}s for events/chat).`;
+    return;
+  }
+  node.textContent = "Auto-refresh: off.";
+}
+
+async function pollRealtimeSilently() {
+  if (!state.token || !state.campaignId || state.pollInFlight) {
+    return;
+  }
+
+  state.pollInFlight = true;
+  try {
+    await loadEvents();
+    await loadChatMessages();
+  } catch {
+    // Ignore transient poll errors; manual actions still show errors.
+  } finally {
+    state.pollInFlight = false;
+  }
+}
+
+function stopRealtimePolling() {
+  if (state.pollTimerId) {
+    clearInterval(state.pollTimerId);
+    state.pollTimerId = null;
+  }
+  renderAutoRefreshState();
+}
+
+function startRealtimePolling() {
+  stopRealtimePolling();
+
+  if (!state.token || !state.campaignId) {
+    return;
+  }
+
+  state.pollTimerId = setInterval(() => {
+    pollRealtimeSilently();
+  }, state.pollIntervalMs);
+
+  renderAutoRefreshState();
+  pollRealtimeSilently();
+}
+
 function clearCampaignDashboard() {
   document.querySelector("#campaign-summary-output").textContent = "";
   document.querySelector("#campaign-members").innerHTML = "";
@@ -82,6 +141,7 @@ function clearCampaignDashboard() {
   document.querySelector("#chat-output").textContent = "";
   state.lastEventTimestamp = null;
   state.lastChatTimestamp = null;
+  stopRealtimePolling();
 }
 
 function renderMemberList(members = []) {
@@ -134,6 +194,7 @@ function setSelectedCampaign(campaign) {
   state.lastEventTimestamp = null;
   state.lastChatTimestamp = null;
   renderCampaignState();
+  startRealtimePolling();
 }
 
 function eventQueryPath() {
@@ -252,6 +313,7 @@ document.querySelector("#register-form").addEventListener("submit", async (event
     state.token = result.token;
     state.user = result.user;
     document.querySelector("#auth-state").textContent = `Logged in as ${result.user.displayName}`;
+    renderAutoRefreshState();
     setStatus("Registered and logged in.");
   } catch (error) {
     setStatus(error.message);
@@ -274,6 +336,7 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
     state.token = result.token;
     state.user = result.user;
     document.querySelector("#auth-state").textContent = `Logged in as ${result.user.displayName}`;
+    renderAutoRefreshState();
     setStatus("Logged in.");
   } catch (error) {
     setStatus(error.message);
@@ -525,4 +588,9 @@ document.querySelector("#load-events").addEventListener("click", async () => {
 
 renderCampaignState();
 clearCampaignDashboard();
+renderAutoRefreshState();
 setStatus("Ready. Register or login first.");
+
+window.addEventListener("beforeunload", () => {
+  stopRealtimePolling();
+});

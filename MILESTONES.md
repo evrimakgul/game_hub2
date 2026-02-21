@@ -108,3 +108,15 @@ git switch -c restore/milestone-06 milestone-06-dashboard-flow
 ```powershell
 git switch -c restore/milestone-07 milestone-07-chat-basics
 ```
+
+### milestone-08-live-polling
+- Date: 2026-02-21
+- Commit: `TBD`
+- What was done:
+  - Added automatic polling for events and chat in the web UI.
+  - GM/player now see new dice rolls and chat messages without pressing load buttons.
+  - Added clear auto-refresh status indicator in campaign section.
+- Rollback command:
+```powershell
+git switch -c restore/milestone-08 milestone-08-live-polling
+```

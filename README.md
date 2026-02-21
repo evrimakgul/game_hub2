@@ -35,6 +35,7 @@ npm run test:api
 - Data file location: `apps/api/data/store.json`
 - Default ruleset: `d10-basic`
 - This is MVP baseline architecture, not final production hardening.
+- Events/chat auto-refresh every 2 seconds after a campaign is selected.
 
 ## API Routes (MVP)
 - `POST /api/v1/auth/register`
