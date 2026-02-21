@@ -203,15 +203,33 @@ pre {
 }
 
 #master-ruleset-draft-list li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 #master-ruleset-draft-list span {
-  flex: 1 1 280px;
+  display: block;
+}
+
+.draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.draft-actions button.is-active {
+  background: #d8ebf8;
+  border-color: #9fc0db;
+  color: #1d3f5a;
+}
+
+#master-ruleset-draft-preview {
+  max-height: 260px;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .sheet-form {

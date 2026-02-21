@@ -7,6 +7,7 @@ Web FRP hub foundation with:
 - role-based character visibility (GM vs Player)
 - private chat recipient picker based on campaign members (Player + Master)
 - master workspace actions (active/passive game views, ruleset usage view, local ruleset drafts)
+- master ruleset drafts support edit, duplicate, and JSON preview
 - quick event filter buttons (All/Rolls/Session/Character) and selected campaign highlighting
 - local player-sheet layout draft save/load for non-API sections
 - 10-section character sheet layout scaffold (Bio, Combat, Stats, Skills, Powers, Equipment, Merits/Flaws, Connections, Inventory, Notes)

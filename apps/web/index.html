@@ -397,9 +397,23 @@
                 rows="3"
                 placeholder="Design notes (local draft)"
               ></textarea>
-              <button type="submit">Save Draft</button>
+              <div class="row">
+                <button id="master-ruleset-draft-submit" type="submit">Save Draft</button>
+                <button
+                  id="master-ruleset-draft-cancel"
+                  type="button"
+                  class="ghost hidden"
+                >
+                  Cancel Edit
+                </button>
+              </div>
             </form>
+            <div id="master-ruleset-draft-mode" class="muted">
+              Mode: creating new draft.
+            </div>
             <ul id="master-ruleset-draft-list"></ul>
+            <h4>Draft JSON Preview</h4>
+            <pre id="master-ruleset-draft-preview"></pre>
           </div>
         </section>
 

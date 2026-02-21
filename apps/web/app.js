@@ -39,6 +39,8 @@ const state = {
   masterCampaignFilter: "all",
   masterCampaignCache: [],
   masterRulesetDrafts: [],
+  masterEditingDraftId: null,
+  masterPreviewDraftId: null,
   playerLayoutDrafts: {}
 };
 
@@ -110,11 +112,13 @@ function loadMasterRulesetDrafts() {
     const raw = localStorage.getItem(RULESET_DRAFTS_STORAGE_KEY);
     if (!raw) {
       state.masterRulesetDrafts = [];
+      state.masterPreviewDraftId = null;
       return;
     }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
       state.masterRulesetDrafts = [];
+      state.masterPreviewDraftId = null;
       return;
     }
     state.masterRulesetDrafts = parsed
@@ -125,11 +129,20 @@ function loadMasterRulesetDrafts() {
         theme: String(entry.theme || "").trim(),
         defaultDifficulty: Number(entry.defaultDifficulty) || 6,
         notes: String(entry.notes || ""),
-        createdAt: String(entry.createdAt || new Date().toISOString())
+        createdAt: String(entry.createdAt || new Date().toISOString()),
+        updatedAt: String(
+          entry.updatedAt || entry.createdAt || new Date().toISOString()
+        )
       }))
       .filter((entry) => entry.name);
+    if (state.masterRulesetDrafts.length > 0) {
+      state.masterPreviewDraftId = state.masterRulesetDrafts[0].id;
+    } else {
+      state.masterPreviewDraftId = null;
+    }
   } catch {
     state.masterRulesetDrafts = [];
+    state.masterPreviewDraftId = null;
   }
 }
 
@@ -142,6 +155,100 @@ function saveMasterRulesetDrafts() {
   } catch {
     // Ignore storage failures (private mode/quota).
   }
+}
+
+function findMasterRulesetDraftById(draftId) {
+  return state.masterRulesetDrafts.find((entry) => entry.id === draftId) || null;
+}
+
+function renderMasterRulesetDraftFormMode() {
+  const submit = el("master-ruleset-draft-submit");
+  const cancel = el("master-ruleset-draft-cancel");
+  const mode = el("master-ruleset-draft-mode");
+  const editingDraft = state.masterEditingDraftId
+    ? findMasterRulesetDraftById(state.masterEditingDraftId)
+    : null;
+
+  if (submit) {
+    submit.textContent = editingDraft ? "Update Draft" : "Save Draft";
+  }
+  if (cancel) {
+    cancel.classList.toggle("hidden", !editingDraft);
+  }
+  if (mode) {
+    mode.textContent = editingDraft
+      ? `Mode: editing "${editingDraft.name}".`
+      : "Mode: creating new draft.";
+  }
+}
+
+function resetMasterRulesetDraftForm() {
+  const form = el("master-ruleset-draft-form");
+  if (!form) {
+    return;
+  }
+  form.reset();
+  const difficultyField = form.elements.namedItem("defaultDifficulty");
+  if (difficultyField) {
+    difficultyField.value = "6";
+  }
+  state.masterEditingDraftId = null;
+  renderMasterRulesetDraftFormMode();
+}
+
+function openMasterRulesetDraftEditor(draftId) {
+  const draft = findMasterRulesetDraftById(draftId);
+  const form = el("master-ruleset-draft-form");
+  if (!draft || !form) {
+    return false;
+  }
+  setFormValue(form, "name", draft.name);
+  setFormValue(form, "theme", draft.theme);
+  setFormValue(form, "defaultDifficulty", draft.defaultDifficulty);
+  setFormValue(form, "notes", draft.notes);
+  state.masterEditingDraftId = draft.id;
+  renderMasterRulesetDraftFormMode();
+  return true;
+}
+
+function renderMasterRulesetDraftPreview() {
+  const node = el("master-ruleset-draft-preview");
+  if (!node) {
+    return;
+  }
+  if (state.masterRulesetDrafts.length === 0) {
+    node.textContent = "No draft selected.";
+    return;
+  }
+
+  let draft = state.masterPreviewDraftId
+    ? findMasterRulesetDraftById(state.masterPreviewDraftId)
+    : null;
+  if (!draft) {
+    draft = [...state.masterRulesetDrafts].sort(
+      (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+    )[0];
+    state.masterPreviewDraftId = draft?.id || null;
+  }
+
+  if (!draft) {
+    node.textContent = "No draft selected.";
+    return;
+  }
+
+  node.textContent = JSON.stringify(
+    {
+      id: draft.id,
+      name: draft.name,
+      theme: draft.theme,
+      defaultDifficulty: draft.defaultDifficulty,
+      notes: draft.notes,
+      createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt || draft.createdAt
+    },
+    null,
+    2
+  );
 }
 
 function playerLayoutDraftKey(campaignId, userId) {
@@ -430,22 +537,80 @@ function renderMasterRulesetDrafts() {
     return;
   }
   node.innerHTML = "";
+  renderMasterRulesetDraftFormMode();
+
   if (state.masterRulesetDrafts.length === 0) {
+    state.masterPreviewDraftId = null;
+    state.masterEditingDraftId = null;
+    renderMasterRulesetDraftFormMode();
     node.innerHTML = "<li>No local drafts yet.</li>";
+    renderMasterRulesetDraftPreview();
     return;
   }
 
   const drafts = [...state.masterRulesetDrafts].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
   );
 
   for (const draft of drafts) {
     const item = document.createElement("li");
     const details = document.createElement("span");
     const theme = draft.theme ? ` | theme: ${draft.theme}` : "";
+    const updated =
+      draft.updatedAt && draft.updatedAt !== draft.createdAt
+        ? ` | updated: ${formatDate(draft.updatedAt)}`
+        : "";
     details.textContent =
       `${draft.name}${theme} | default difficulty: ${draft.defaultDifficulty} | ` +
-      `created: ${formatDate(draft.createdAt)}`;
+      `created: ${formatDate(draft.createdAt)}${updated}`;
+
+    const actions = document.createElement("div");
+    actions.className = "draft-actions";
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "ghost";
+    editButton.textContent = "Edit";
+    editButton.addEventListener("click", () => {
+      const opened = openMasterRulesetDraftEditor(draft.id);
+      if (opened) {
+        state.masterPreviewDraftId = draft.id;
+        renderMasterRulesetDrafts();
+        setStatus(`Editing draft: ${draft.name}`);
+      }
+    });
+
+    const duplicateButton = document.createElement("button");
+    duplicateButton.type = "button";
+    duplicateButton.className = "ghost";
+    duplicateButton.textContent = "Duplicate";
+    duplicateButton.addEventListener("click", () => {
+      const now = new Date().toISOString();
+      const copy = {
+        ...draft,
+        id: createClientId(),
+        name: `${draft.name} (Copy)`,
+        createdAt: now,
+        updatedAt: now
+      };
+      state.masterRulesetDrafts.push(copy);
+      state.masterPreviewDraftId = copy.id;
+      saveMasterRulesetDrafts();
+      renderMasterRulesetDrafts();
+      setStatus(`Duplicated draft: ${copy.name}`);
+    });
+
+    const previewButton = document.createElement("button");
+    previewButton.type = "button";
+    previewButton.className = "ghost";
+    previewButton.textContent = "Preview";
+    previewButton.classList.toggle("is-active", draft.id === state.masterPreviewDraftId);
+    previewButton.addEventListener("click", () => {
+      state.masterPreviewDraftId = draft.id;
+      renderMasterRulesetDrafts();
+      setStatus(`Previewing draft: ${draft.name}`);
+    });
+
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "ghost";
@@ -454,14 +619,27 @@ function renderMasterRulesetDrafts() {
       state.masterRulesetDrafts = state.masterRulesetDrafts.filter(
         (entry) => entry.id !== draft.id
       );
+      if (state.masterEditingDraftId === draft.id) {
+        resetMasterRulesetDraftForm();
+      }
+      if (state.masterPreviewDraftId === draft.id) {
+        state.masterPreviewDraftId = null;
+      }
       saveMasterRulesetDrafts();
       renderMasterRulesetDrafts();
       setStatus(`Deleted draft: ${draft.name}`);
     });
+
+    actions.appendChild(editButton);
+    actions.appendChild(duplicateButton);
+    actions.appendChild(previewButton);
+    actions.appendChild(removeButton);
     item.appendChild(details);
-    item.appendChild(removeButton);
+    item.appendChild(actions);
     node.appendChild(item);
   }
+
+  renderMasterRulesetDraftPreview();
 }
 
 function renderMasterWorkspace() {
@@ -669,6 +847,7 @@ function signOut() {
   state.masterAction = MASTER_ACTION.HOST;
   state.masterCampaignFilter = "all";
   state.masterCampaignCache = [];
+  state.masterEditingDraftId = null;
   clearCampaignSelection();
   stopRealtimeStream();
   setWelcomeUser();
@@ -1380,6 +1559,11 @@ function attachMasterHandlers() {
     });
   }
 
+  el("master-ruleset-draft-cancel").addEventListener("click", () => {
+    resetMasterRulesetDraftForm();
+    setStatus("Ruleset draft edit cancelled.");
+  });
+
   el("master-ruleset-draft-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = new FormData(event.target);
@@ -1397,22 +1581,38 @@ function attachMasterHandlers() {
       return;
     }
 
-    state.masterRulesetDrafts.push({
-      id: createClientId(),
-      name,
-      theme,
-      notes,
-      defaultDifficulty,
-      createdAt: new Date().toISOString()
-    });
-    saveMasterRulesetDrafts();
-    renderMasterRulesetDrafts();
-    event.target.reset();
-    const difficultyField = event.target.elements.namedItem("defaultDifficulty");
-    if (difficultyField) {
-      difficultyField.value = "6";
+    const now = new Date().toISOString();
+    let savedDraft = null;
+    if (state.masterEditingDraftId) {
+      const existing = findMasterRulesetDraftById(state.masterEditingDraftId);
+      if (existing) {
+        existing.name = name;
+        existing.theme = theme;
+        existing.notes = notes;
+        existing.defaultDifficulty = defaultDifficulty;
+        existing.updatedAt = now;
+        savedDraft = existing;
+      }
     }
-    setStatus(`Ruleset draft saved: ${name}`);
+
+    if (!savedDraft) {
+      savedDraft = {
+        id: createClientId(),
+        name,
+        theme,
+        notes,
+        defaultDifficulty,
+        createdAt: now,
+        updatedAt: now
+      };
+      state.masterRulesetDrafts.push(savedDraft);
+    }
+
+    state.masterPreviewDraftId = savedDraft.id;
+    saveMasterRulesetDrafts();
+    resetMasterRulesetDraftForm();
+    renderMasterRulesetDrafts();
+    setStatus(`Ruleset draft saved: ${savedDraft.name}`);
   });
 
   el("master-create-campaign-form").addEventListener("submit", async (event) => {
