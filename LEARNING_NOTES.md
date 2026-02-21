@@ -63,3 +63,9 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Send URL; I will connect remote and push for you."
 - Terms to re-teach: origin, upstream tracking.
 - Preferred pace/format: one action now + I execute the rest.
+- Date: 2026-02-21
+- Topic: Milestone readability
+- What was unclear: Milestone names alone are not enough to decide rollback target.
+- Simpler wording to use next time: "Each milestone needs a short plain-language summary of what changed."
+- Terms to re-teach: milestone tag, rollback target.
+- Preferred pace/format: concise milestone log with one-line purpose.

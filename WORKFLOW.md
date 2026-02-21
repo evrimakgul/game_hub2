@@ -23,6 +23,12 @@ Use tags for milestones.
 
 Term: `tag` = a named snapshot of a commit.
 
+Before/after creating a tag, add a short entry to `MILESTONES.md`:
+- date
+- tag name
+- short "what was done" summary
+- rollback command
+
 Create a milestone tag:
 
 ```powershell

@@ -31,3 +31,4 @@ Use this file before every response.
 
 ## Project Reminder
 - If this project gets a second top-level folder, remind the user to create/save a VS Code workspace.
+- When a milestone tag is created, update `MILESTONES.md` with a short plain-language summary and rollback command.
