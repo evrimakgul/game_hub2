@@ -5,6 +5,7 @@ Web FRP hub foundation with:
 - role-based page flow (Connection -> Sign-Up -> Welcome -> Player/Master)
 - campaign creation and invite flow
 - role-based character visibility (GM vs Player)
+- master workspace actions (active/passive game views, ruleset usage view, local ruleset drafts)
 - 10-section character sheet layout scaffold (Bio, Combat, Stats, Skills, Powers, Equipment, Merits/Flaws, Connections, Inventory, Notes)
 - D10 success rolls
 - session event feed

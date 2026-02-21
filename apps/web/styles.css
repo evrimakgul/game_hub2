@@ -171,6 +171,35 @@ pre {
   gap: 8px;
 }
 
+.master-actions button.is-active {
+  background: #0a4f66;
+  border-color: #0a4f66;
+}
+
+.master-panel {
+  display: none;
+}
+
+.master-panel--active {
+  display: block;
+}
+
+.master-panel ul li {
+  margin-bottom: 6px;
+}
+
+#master-ruleset-draft-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#master-ruleset-draft-list span {
+  flex: 1 1 280px;
+}
+
 .sheet-form {
   display: block;
 }

@@ -1,3 +1,14 @@
+const MASTER_ACTION = {
+  HOST: "Host a New Game",
+  CREATE_RULESET: "Create a New Ruleset",
+  MY_RULESETS: "My Rulesets",
+  PASSIVE_OLD_GAMES: "Passive / Old Games",
+  ACTIVE_GAMES: "Active Games"
+};
+
+const MASTER_PASSIVE_STATES = new Set(["idle", "paused", "ended"]);
+const RULESET_DRAFTS_STORAGE_KEY = "gamehub.masterRulesetDrafts.v1";
+
 const state = {
   token: null,
   user: null,
@@ -9,7 +20,11 @@ const state = {
   realtimeSource: null,
   realtimePrefix: null,
   realtimeCampaignId: null,
-  realtimeInFlight: false
+  realtimeInFlight: false,
+  masterAction: MASTER_ACTION.HOST,
+  masterCampaignFilter: "all",
+  masterCampaignCache: [],
+  masterRulesetDrafts: []
 };
 
 function el(id) {
@@ -68,6 +83,282 @@ function clearCampaignSelection() {
   state.selectedCampaignRole = null;
 }
 
+function createClientId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function loadMasterRulesetDrafts() {
+  try {
+    const raw = localStorage.getItem(RULESET_DRAFTS_STORAGE_KEY);
+    if (!raw) {
+      state.masterRulesetDrafts = [];
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      state.masterRulesetDrafts = [];
+      return;
+    }
+    state.masterRulesetDrafts = parsed
+      .filter((entry) => entry && typeof entry === "object")
+      .map((entry) => ({
+        id: String(entry.id || createClientId()),
+        name: String(entry.name || "").trim(),
+        theme: String(entry.theme || "").trim(),
+        defaultDifficulty: Number(entry.defaultDifficulty) || 6,
+        notes: String(entry.notes || ""),
+        createdAt: String(entry.createdAt || new Date().toISOString())
+      }))
+      .filter((entry) => entry.name);
+  } catch {
+    state.masterRulesetDrafts = [];
+  }
+}
+
+function saveMasterRulesetDrafts() {
+  try {
+    localStorage.setItem(
+      RULESET_DRAFTS_STORAGE_KEY,
+      JSON.stringify(state.masterRulesetDrafts)
+    );
+  } catch {
+    // Ignore storage failures (private mode/quota).
+  }
+}
+
+function campaignMatchesMasterFilter(campaign) {
+  if (state.masterCampaignFilter === "active") {
+    return campaign.sessionState === "active";
+  }
+  if (state.masterCampaignFilter === "passive") {
+    return MASTER_PASSIVE_STATES.has(String(campaign.sessionState || "idle"));
+  }
+  return true;
+}
+
+function renderMasterActionButtons() {
+  for (const button of document.querySelectorAll("[data-master-action]")) {
+    button.classList.toggle(
+      "is-active",
+      button.dataset.masterAction === state.masterAction
+    );
+  }
+}
+
+function setMasterWorkspacePanel(panelKey) {
+  for (const panel of document.querySelectorAll("[data-master-panel]")) {
+    panel.classList.toggle("master-panel--active", panel.dataset.masterPanel === panelKey);
+  }
+}
+
+function renderMasterCampaignBucket(listId, campaigns, emptyText) {
+  const node = el(listId);
+  if (!node) {
+    return;
+  }
+  node.innerHTML = "";
+  if (!campaigns || campaigns.length === 0) {
+    node.innerHTML = `<li>${emptyText}</li>`;
+    return;
+  }
+  for (const campaign of campaigns) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    const selectedMark =
+      campaign.id === state.selectedCampaignId &&
+      campaign.role === "GM"
+        ? " [selected]"
+        : "";
+    button.type = "button";
+    button.textContent = `${campaign.name} | session: ${campaign.sessionState}${selectedMark}`;
+    button.addEventListener("click", async () => {
+      try {
+        setSelectedCampaign(campaign);
+        await refreshRoleData("master");
+        setStatus(`Selected master campaign: ${campaign.name}`);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+    item.appendChild(button);
+    node.appendChild(item);
+  }
+}
+
+function renderMasterRulesetUsage() {
+  const node = el("master-ruleset-usage-list");
+  if (!node) {
+    return;
+  }
+  node.innerHTML = "";
+
+  if (state.masterCampaignCache.length === 0) {
+    node.innerHTML = "<li>Load campaigns to see ruleset usage.</li>";
+    return;
+  }
+
+  const usage = new Map();
+  for (const campaign of state.masterCampaignCache) {
+    const key = String(campaign.rulesetId || "unknown");
+    if (!usage.has(key)) {
+      usage.set(key, { count: 0, activeCount: 0 });
+    }
+    const row = usage.get(key);
+    row.count += 1;
+    if (campaign.sessionState === "active") {
+      row.activeCount += 1;
+    }
+  }
+
+  const entries = [...usage.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0])
+  );
+
+  for (const [rulesetId, row] of entries) {
+    const item = document.createElement("li");
+    item.textContent = `${rulesetId} | campaigns: ${row.count} | active: ${row.activeCount}`;
+    node.appendChild(item);
+  }
+}
+
+function renderMasterRulesetDrafts() {
+  const node = el("master-ruleset-draft-list");
+  if (!node) {
+    return;
+  }
+  node.innerHTML = "";
+  if (state.masterRulesetDrafts.length === 0) {
+    node.innerHTML = "<li>No local drafts yet.</li>";
+    return;
+  }
+
+  const drafts = [...state.masterRulesetDrafts].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+
+  for (const draft of drafts) {
+    const item = document.createElement("li");
+    const details = document.createElement("span");
+    const theme = draft.theme ? ` | theme: ${draft.theme}` : "";
+    details.textContent =
+      `${draft.name}${theme} | default difficulty: ${draft.defaultDifficulty} | ` +
+      `created: ${formatDate(draft.createdAt)}`;
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "ghost";
+    removeButton.textContent = "Delete";
+    removeButton.addEventListener("click", () => {
+      state.masterRulesetDrafts = state.masterRulesetDrafts.filter(
+        (entry) => entry.id !== draft.id
+      );
+      saveMasterRulesetDrafts();
+      renderMasterRulesetDrafts();
+      setStatus(`Deleted draft: ${draft.name}`);
+    });
+    item.appendChild(details);
+    item.appendChild(removeButton);
+    node.appendChild(item);
+  }
+}
+
+function renderMasterWorkspace() {
+  const title = el("master-workspace-title");
+  if (!title) {
+    return;
+  }
+
+  renderMasterActionButtons();
+
+  if (state.masterAction === MASTER_ACTION.ACTIVE_GAMES) {
+    title.textContent = "Showing only active campaigns.";
+    setMasterWorkspacePanel("active");
+    renderMasterCampaignBucket(
+      "master-active-games-list",
+      state.masterCampaignCache.filter((entry) => entry.sessionState === "active"),
+      "No active games."
+    );
+    return;
+  }
+
+  if (state.masterAction === MASTER_ACTION.PASSIVE_OLD_GAMES) {
+    title.textContent = "Showing idle, paused, and ended campaigns.";
+    setMasterWorkspacePanel("passive");
+    renderMasterCampaignBucket(
+      "master-passive-games-list",
+      state.masterCampaignCache.filter((entry) =>
+        MASTER_PASSIVE_STATES.has(String(entry.sessionState || "idle"))
+      ),
+      "No passive/old games."
+    );
+    return;
+  }
+
+  if (state.masterAction === MASTER_ACTION.MY_RULESETS) {
+    title.textContent = "Rulesets currently assigned to your campaigns.";
+    setMasterWorkspacePanel("rulesets");
+    renderMasterRulesetUsage();
+    return;
+  }
+
+  if (state.masterAction === MASTER_ACTION.CREATE_RULESET) {
+    title.textContent = "Build local ruleset drafts for future ruleset tooling.";
+    setMasterWorkspacePanel("drafts");
+    renderMasterRulesetDrafts();
+    return;
+  }
+
+  title.textContent = "Host a new game or pick another action.";
+  setMasterWorkspacePanel("host");
+}
+
+async function activateMasterAction(action) {
+  state.masterAction = action;
+
+  if (action === MASTER_ACTION.ACTIVE_GAMES) {
+    state.masterCampaignFilter = "active";
+    await loadCampaigns("master");
+    renderMasterWorkspace();
+    setStatus("Master view filtered: active games.");
+    return;
+  }
+
+  if (action === MASTER_ACTION.PASSIVE_OLD_GAMES) {
+    state.masterCampaignFilter = "passive";
+    await loadCampaigns("master");
+    renderMasterWorkspace();
+    setStatus("Master view filtered: passive/old games.");
+    return;
+  }
+
+  if (action === MASTER_ACTION.MY_RULESETS) {
+    state.masterCampaignFilter = "all";
+    await loadCampaigns("master");
+    renderMasterWorkspace();
+    setStatus("Master workspace: ruleset usage.");
+    return;
+  }
+
+  if (action === MASTER_ACTION.CREATE_RULESET) {
+    renderMasterWorkspace();
+    const form = el("master-ruleset-draft-form");
+    const nameField = form?.elements?.namedItem("name");
+    nameField?.focus();
+    setStatus("Master workspace: ruleset draft builder.");
+    return;
+  }
+
+  state.masterCampaignFilter = "all";
+  await loadCampaigns("master");
+  renderMasterWorkspace();
+  const hostForm = el("master-create-campaign-form");
+  const input = hostForm?.elements?.namedItem("name");
+  input?.focus();
+  setStatus("Master workspace: host a new game.");
+}
+
 function renderCampaignState(prefix) {
   const node = el(`${prefix}-campaign-state`);
   if (!node) {
@@ -122,6 +413,7 @@ function renderRoleStates() {
   renderCampaignState("master");
   renderAutoRefreshState("player");
   renderAutoRefreshState("master");
+  renderMasterWorkspace();
 }
 
 function showPage(pageName) {
@@ -141,6 +433,9 @@ function clearRoleOutputs(prefix) {
   const chat = el(`${prefix}-chat-output`);
   const inviteOut = el(`${prefix}-invite-output`);
   const chars = el(`${prefix}-character-output`);
+  const activeGames = el("master-active-games-list");
+  const passiveGames = el("master-passive-games-list");
+  const rulesets = el("master-ruleset-usage-list");
   if (summary) summary.textContent = "";
   if (members) members.innerHTML = "";
   if (invites) invites.innerHTML = "";
@@ -148,11 +443,19 @@ function clearRoleOutputs(prefix) {
   if (chat) chat.textContent = "";
   if (inviteOut) inviteOut.textContent = "";
   if (chars) chars.textContent = "";
+  if (prefix === "master") {
+    if (activeGames) activeGames.innerHTML = "";
+    if (passiveGames) passiveGames.innerHTML = "";
+    if (rulesets) rulesets.innerHTML = "";
+  }
 }
 
 function signOut() {
   state.token = null;
   state.user = null;
+  state.masterAction = MASTER_ACTION.HOST;
+  state.masterCampaignFilter = "all";
+  state.masterCampaignCache = [];
   clearCampaignSelection();
   stopRealtimeStream();
   setWelcomeUser();
@@ -305,15 +608,41 @@ async function loadCampaigns(prefix) {
   const result = await api("/api/v1/campaigns");
   const targetRole = expectedRole(prefix);
   const campaigns = result.campaigns.filter((entry) => entry.role === targetRole);
+  const visibleCampaigns =
+    prefix === "master"
+      ? campaigns.filter((entry) => campaignMatchesMasterFilter(entry))
+      : campaigns;
+
+  if (prefix === "master") {
+    state.masterCampaignCache = campaigns;
+  }
+
   const list = el(`${prefix}-campaign-list`);
   list.innerHTML = "";
 
   if (campaigns.length === 0) {
     list.innerHTML = `<li>No ${prefix} campaigns found.</li>`;
+    if (prefix === "master") {
+      renderMasterWorkspace();
+    }
     return;
   }
 
-  for (const campaign of campaigns) {
+  if (visibleCampaigns.length === 0) {
+    if (prefix === "master" && state.masterCampaignFilter === "active") {
+      list.innerHTML = "<li>No active campaigns found.</li>";
+    } else if (prefix === "master" && state.masterCampaignFilter === "passive") {
+      list.innerHTML = "<li>No passive/old campaigns found.</li>";
+    } else {
+      list.innerHTML = `<li>No ${prefix} campaigns found.</li>`;
+    }
+    if (prefix === "master") {
+      renderMasterWorkspace();
+    }
+    return;
+  }
+
+  for (const campaign of visibleCampaigns) {
     const item = document.createElement("li");
     const button = document.createElement("button");
     button.textContent = `${campaign.name} | session: ${campaign.sessionState}`;
@@ -329,6 +658,10 @@ async function loadCampaigns(prefix) {
     });
     item.appendChild(button);
     list.appendChild(item);
+  }
+
+  if (prefix === "master") {
+    renderMasterWorkspace();
   }
 }
 
@@ -477,6 +810,9 @@ async function refreshRoleData(prefix) {
   await loadChatMessages(prefix, true);
   if (prefix === "player") {
     await loadPlayerCharacters(true);
+  }
+  if (prefix === "master") {
+    await loadCampaigns("master");
   }
   ensureRealtimeStream();
 }
@@ -728,10 +1064,49 @@ function attachMasterHandlers() {
   el("master-logout").addEventListener("click", signOut);
 
   for (const button of document.querySelectorAll("[data-master-action]")) {
-    button.addEventListener("click", () => {
-      setStatus(`Master action selected: ${button.dataset.masterAction}`);
+    button.addEventListener("click", async () => {
+      try {
+        await activateMasterAction(button.dataset.masterAction);
+      } catch (error) {
+        setStatus(error.message);
+      }
     });
   }
+
+  el("master-ruleset-draft-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    const name = String(form.get("name") || "").trim();
+    const theme = String(form.get("theme") || "").trim();
+    const notes = String(form.get("notes") || "");
+    const defaultDifficulty = Number(form.get("defaultDifficulty"));
+
+    if (!name) {
+      setStatus("Ruleset draft name is required.");
+      return;
+    }
+    if (!Number.isInteger(defaultDifficulty) || defaultDifficulty < 2 || defaultDifficulty > 10) {
+      setStatus("Default difficulty must be an integer between 2 and 10.");
+      return;
+    }
+
+    state.masterRulesetDrafts.push({
+      id: createClientId(),
+      name,
+      theme,
+      notes,
+      defaultDifficulty,
+      createdAt: new Date().toISOString()
+    });
+    saveMasterRulesetDrafts();
+    renderMasterRulesetDrafts();
+    event.target.reset();
+    const difficultyField = event.target.elements.namedItem("defaultDifficulty");
+    if (difficultyField) {
+      difficultyField.value = "6";
+    }
+    setStatus(`Ruleset draft saved: ${name}`);
+  });
 
   el("master-create-campaign-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -741,6 +1116,8 @@ function attachMasterHandlers() {
         method: "POST",
         body: JSON.stringify({ name: form.get("name") })
       });
+      state.masterAction = MASTER_ACTION.HOST;
+      state.masterCampaignFilter = "all";
       setSelectedCampaign(result.campaign);
       await Promise.all([loadCampaigns("master"), refreshRoleData("master")]);
       setStatus("Campaign hosted.");
@@ -847,10 +1224,12 @@ function attachMasterHandlers() {
 }
 
 function initialize() {
+  loadMasterRulesetDrafts();
   attachAuthHandlers();
   attachWelcomeHandlers();
   attachPlayerHandlers();
   attachMasterHandlers();
+  renderMasterWorkspace();
   showPage("connection");
   setWelcomeUser();
   renderRoleStates();

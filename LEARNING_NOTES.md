@@ -105,3 +105,8 @@ Use this file to adapt explanations over time.
 - Simpler wording to use next time: "Implement Connection -> Sign-Up -> Welcome -> Player/Master pages first."
 - Terms to re-teach: role-based routing, dashboard shell, branch flow.
 - Preferred pace/format: lock direction, then implement UI flow immediately.
+- Date: 2026-02-21
+- Topic: Immediate next action after implementation milestones
+- What was unclear: What exact task to do now and what "run 2 real sessions" means in practice.
+- Which terms need simpler definitions: MVP validation, session checklist, PASS/FAIL item.
+- What teaching pace worked best: one direct action first, then 3 short steps.

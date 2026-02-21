@@ -45,6 +45,7 @@
 - [x] Add basic text chat (public/private) with access-safe API and UI.
 - [x] Add auto-refresh polling for events/chat during live sessions.
 - [x] Add stricter roll input validation (`pool`/`difficulty`) with 400-level API errors and tests.
+- [x] Make Master dashboard actions usable (active/passive game views, ruleset usage view, local ruleset drafts panel).
 
 ## Next Tasks
 - [ ] Complete MVP validation by running 2 full real sessions with your group.

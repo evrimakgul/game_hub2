@@ -305,8 +305,14 @@
 
         <section class="card">
           <h3>Master Actions</h3>
-          <div class="chip-grid">
-            <button type="button" data-master-action="Host a New Game">Host a New Game</button>
+          <div class="chip-grid master-actions">
+            <button
+              type="button"
+              data-master-action="Host a New Game"
+              class="is-active"
+            >
+              Host a New Game
+            </button>
             <button type="button" data-master-action="Create a New Ruleset">
               Create a New Ruleset
             </button>
@@ -315,6 +321,55 @@
               Passive / Old Games
             </button>
             <button type="button" data-master-action="Active Games">Active Games</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Master Workspace</h3>
+          <p id="master-workspace-title" class="muted">
+            Host a new game or pick another action.
+          </p>
+
+          <div class="master-panel master-panel--active" data-master-panel="host">
+            <p class="muted">Use Campaign Control below to host and select campaigns.</p>
+          </div>
+
+          <div class="master-panel" data-master-panel="active">
+            <h4>Active Games</h4>
+            <ul id="master-active-games-list"></ul>
+          </div>
+
+          <div class="master-panel" data-master-panel="passive">
+            <h4>Passive / Old Games</h4>
+            <ul id="master-passive-games-list"></ul>
+          </div>
+
+          <div class="master-panel" data-master-panel="rulesets">
+            <h4>Rulesets Used in My Campaigns</h4>
+            <ul id="master-ruleset-usage-list"></ul>
+          </div>
+
+          <div class="master-panel" data-master-panel="drafts">
+            <h4>Create a New Ruleset Draft</h4>
+            <form id="master-ruleset-draft-form">
+              <input name="name" placeholder="Ruleset name" required />
+              <input name="theme" placeholder="Theme (optional)" />
+              <input
+                name="defaultDifficulty"
+                type="number"
+                min="2"
+                max="10"
+                value="6"
+                required
+              />
+              <textarea
+                name="notes"
+                rows="3"
+                placeholder="Design notes (local draft)"
+              ></textarea>
+              <button type="submit">Save Draft</button>
+            </form>
+            <ul id="master-ruleset-draft-list"></ul>
           </div>
         </section>
 
