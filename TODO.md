@@ -40,3 +40,7 @@
 - [x] Improve campaign dashboard flow (summary API, member/invite visibility, event filtering).
 - [x] Add basic text chat (public/private) with access-safe API and UI.
 - [x] Add auto-refresh polling for events/chat during live sessions.
+
+## Next Tasks
+- [ ] Complete MVP validation by running 2 full real sessions with your group.
+- [ ] Replace polling with server-push realtime updates (WebSocket or SSE).
