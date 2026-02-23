@@ -1,107 +1,63 @@
 # Full Scope Map
 
-## 1) Product Goal
-Build a web FRP hub for your own group first, with room for new friends later.
-Commercial potential is allowed, but it is not a scope-success criterion.
+## Goal
+Build a web FRP hub for friend-group play first. Keep it extensible for later growth.
 
-## 2) MVP Success Definition
-MVP is successful when one campaign (4-8 players) can run at least 2 full live sessions with:
-- GM invite-only campaign access
-- One fixed character sheet template
-- D10 success-based rolling
-- Shared session event feed
-- Stable save/load between sessions
+## MVP Success Definition
+MVP is successful only when one campaign (4-8 players) runs 2 full live sessions with:
+- GM invite-only access
+- one fixed sheet template
+- D10 success rolling
+- shared session event feed
+- stable save/load between sessions
 
-## 3) End-Product Feature Direction
-1. Campaign Hub
-- Campaign creation, membership, role control, multi-campaign support.
-2. Character System
-- MVP: one template.
-- End state: customizable per campaign/ruleset.
-3. Session Runtime
-- Realtime as primary mode.
-- Async option remains possible (not mandatory now).
-4. Communication
-- Text chat with public and private channels.
-- No Discord-like built-in voice/audio.
-5. Map and Visual Layer
-- Interactive map tools.
-- Sound and visual animation support.
-6. Automation
-- Rule-aware helpers and combat/session automation.
-7. GM Toolkit
-- Initiative tracker
-- Encounter builder
-- NPC manager
-- NPC creator
-- Loot/economy helpers
-- Advanced combat manager with map interactions (long-term target)
-8. Ruleset Platform
-- One ruleset per campaign.
-- D10 first.
-- Many rulesets supported over time.
-- End state includes GM/DM ruleset creation toolkit.
-9. Data and Ownership
-- Players can export their own data/sheets.
-10. Unified Designer Toolkit (End Product, Not MVP)
-- One design toolset should manage both ruleset design and character sheet design.
-- Graphical sheet designer:
-  - fields, boxes, grouping, sizing, positioning, and shapes
-  - computed field display layout
-- Mechanical designer:
-  - field relationships and computed fields
-  - new rules, spells, and combat mechanics definitions
-  - reusable mechanics blocks that GMs/DMs can compose
+## Master Priority Order (Architecture + Design)
+1. P0 Core Architecture
+- Design schema-driven sheets first.
+- Bridge ruleset data to sheet behavior with one section spike, then reuse pattern.
+- Build ruleset model, storage/versioning, GM APIs, lifecycle, calculations, and SSE updates.
+- Run dual-mode (fixed + schema-driven), then remove fixed sheets after schema-driven confirmation.
+- Add integration tests.
+2. P1 Stability
+- Harden validation and continuity.
+- Run no-regression tests.
+3. Deferred Validation Gate
+- Run full `MVP_SESSION_VALIDATION_CHECKLIST.md` after P0 and P1.
+4. P2 Rich Session
+- Map baseline + first automation helper.
+5. P3 Advanced GM Toolkit
+- Initiative, encounter, NPC, loot/economy, advanced map-linked combat.
+6. P4 Ruleset Expansion
+- Multi-ruleset support + stronger publish/version history.
+7. P5 Designer Toolkit (Late)
+- Unified visual + mechanical designer with validate/preview/publish.
 
-## 4) Scope Constraints and Non-Goals
-- Security level target: basic (not enterprise-grade initially).
-- Mobile app is optional, not required for scope success.
-- Performance target is practical for friend-group scale, not hyperscale.
-- Unified designer toolkit is explicitly a late-phase scope item, not MVP.
+## Current Direction Locks
+### Flow/Auth
+- Role flow: Connection -> Sign-Up -> Welcome -> Player/Master.
+- Email auth is current priority.
+- Discord sign-in stays placeholder/deferred for now.
 
-## 5) Scale Target (Near-to-Mid Horizon)
-- Several active campaigns is expected.
-- Mostly concurrent users in live sessions.
-- New users should be easy to onboard.
+### Character Sheets
+- Locked sections: Bio, Combat, Stats, Skills, Powers/Spells, Equipment, Merits/Flaws, Connections, Inventory, Notes.
+- Migration rule: dual-mode first, then remove fixed sheets after confirmation.
+- Merits/Flaws workflow (planned): section remains locked by default; GM can unlock; player sees an edit action only while unlocked; selectable merits/flaws options come from ruleset definitions (ruleset -> sheet linkage required).
 
-## 6) Architecture Guardrails (to Prevent Future Dead-Ends)
-- Keep rules logic behind a `RulesetAdapter` contract.
-- Keep one campaign -> one active ruleset assignment.
-- Keep permission policy centralized for GM/player boundaries.
-- Keep session events, chat, and map events as separate event types in the same event stream model.
-- Keep character template/rendering separate from rules calculation.
-- Keep API contracts versionable to avoid breaking future clients.
-- Keep async compatibility door open by storing timestamped session events and resumable state.
-- Keep character sheet rendering schema-driven so the future graphical designer can control layout.
-- Keep rules/mechanics definitions data-driven so the future mechanical designer can add/update behavior.
+### Mechanics
+- D10 baseline: success when `roll >= difficulty`; count multiple successes.
+- Keep mechanics extensible.
 
-## 7) Delivery Strategy by Phases
-1. MVP Phase
-- Core manager, sheets, D10 rolls, session feed, reliability basics.
-2. Stabilization Phase
-- Better validation, error handling, and session continuity.
-3. Rich Session Phase
-- Text chat, map baseline, first automation helpers.
-4. Advanced GM Phase
-- Encounter/NPC/combat management depth and map-linked control.
-5. Ruleset Expansion Phase
-- Additional rulesets and GM ruleset creation toolkit.
-6. Designer Toolkit Phase (Late)
-- Unified visual + mechanical designer for sheet/ruleset authoring.
-- Validation, preview, and safe publish workflow for GM-created designs.
+## Architecture Guardrails
+- Keep rules behind `RulesetAdapter`.
+- One campaign -> one active ruleset.
+- Centralize permission policy.
+- Keep typed event stream model (`session`, `chat`, `map`).
+- Keep rendering schema-driven and mechanics data-driven.
+- Keep async-compatible timestamped event/state persistence.
+- Keep API contracts versionable.
 
-## 8) Change-Safety Rule
-Before any new add-on/mechanic/system change, classify it first:
-- Access
-- Campaign
-- Character
-- Session
-- Ruleset
-- Map/Visual
-- Chat
-- Designer
-
-Then implement only within that boundary, or define a new boundary intentionally.
-
-## 9) Direction Lock References
-- A/B/C direction lock for current phase: `A_B_C_DIRECTION_LOCK.md`
+## Non-Goals (Now)
+- No built-in voice/audio stack.
+- No enterprise-grade security target yet.
+- No hyperscale performance target.
+- No mobile app requirement for scope success.

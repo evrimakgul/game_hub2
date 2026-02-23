@@ -1,6 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 
+const DEFAULT_CAMPAIGN_SESSION_STATE = "active-offline";
+const CAMPAIGN_SESSION_STATE_ALIASES = Object.freeze({
+  active: "active-live",
+  "active-live": "active-live",
+  idle: "active-offline",
+  paused: "active-offline",
+  "active-offline": "active-offline",
+  ended: "archived",
+  archived: "archived"
+});
+
+function normalizeCampaignSessionState(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  return CAMPAIGN_SESSION_STATE_ALIASES[raw] || DEFAULT_CAMPAIGN_SESSION_STATE;
+}
+
 function createDefaultData() {
   return {
     meta: {
@@ -13,6 +29,9 @@ function createDefaultData() {
     memberships: [],
     invites: [],
     characterSheets: [],
+    xpSessionAwards: [],
+    xpBuyEntries: [],
+    xpBuyCorrections: [],
     sessionEvents: [],
     chatMessages: []
   };
@@ -71,12 +90,32 @@ export class JsonStore {
       "memberships",
       "invites",
       "characterSheets",
+      "xpSessionAwards",
+      "xpBuyEntries",
+      "xpBuyCorrections",
       "sessionEvents",
       "chatMessages"
     ]) {
       if (!Array.isArray(this.data[key])) {
         this.data[key] = [];
       }
+    }
+
+    for (const campaign of this.data.campaigns) {
+      if (!campaign || typeof campaign !== "object") {
+        continue;
+      }
+      campaign.sessionState = normalizeCampaignSessionState(campaign.sessionState);
+    }
+
+    for (const event of this.data.sessionEvents) {
+      if (!event || event.type !== "SESSION_STATE_CHANGED") {
+        continue;
+      }
+      if (!event.payload || typeof event.payload !== "object") {
+        continue;
+      }
+      event.payload.state = normalizeCampaignSessionState(event.payload.state);
     }
   }
 

@@ -1,75 +1,46 @@
-# Project TODO
+# Project TODO (Master Priority Outline)
 
-## Core Architecture Priority (Locked)
-- [x] Keep core architecture and pivotal functions as top priority over polishing.
-- [x] Ask clarifying questions when core architecture scope/relations are ambiguous.
-- [ ] Build full GM ruleset definition model (fields, mechanics, effects, relations).
-- [ ] Bind player character sheet schema/sections to ruleset definitions.
-- [ ] Implement ruleset-driven calculations (derived fields, checks, effect resolution).
-- [ ] Reflect GM ruleset changes live in player sheet behavior and values.
-- [ ] Keep polishing tasks tracked but always secondary to core architecture tasks.
+## P0 Core Architecture (Now)
+- [x] Design schema-driven sheet v1 (10 sections, fields, validation).
+- [ ] Bridge one section from ruleset data to sheet behavior, then lock reuse pattern.
+- [ ] Merits/Flaws ruleset-bridge spike: GM unlocks section, player gets edit button + ruleset-driven dropdown choices, lock back after submit/approval flow.
+- [ ] Define ruleset model v1 aligned to sheet design.
+- [ ] Add ruleset storage/versioning (one active ruleset per campaign).
+- [ ] Build GM ruleset create/edit APIs with centralized permission checks.
+- [ ] Implement ruleset lifecycle: draft -> validate -> activate.
+- [ ] Implement rules calculations (derived fields, checks, effect resolution).
+- [ ] Run dual-mode sheets (fixed + schema-driven) until confirmed.
+- [ ] Remove fixed-sheet path after schema-driven confirmation.
+- [ ] Push ruleset changes live to sheets via SSE.
+- [ ] Add integration tests (ruleset -> sheet -> SSE).
+- [ ] Create tag `milestone-13-core-ruleset-foundation` + update `MILESTONES.md`.
 
-## Current
-- [x] Initialize local Git repository (`main` branch).
-- [x] Create GitHub repository and add `origin` remote.
-- [x] Push `main` to GitHub.
-- [ ] Commit and push at least once per day.
-- [x] Create first milestone tag (`milestone-00-bootstrap`).
-- [x] Create planning milestone tag (`milestone-01-scope-map`).
-- [x] Create full-scope lock milestone tag (`milestone-02-full-scope-lock`).
-- [x] Create MVP foundation milestone tag (`milestone-03-mvp-foundation`).
-- [x] Create designer scope milestone tag (`milestone-04-designer-scope`).
-- [x] Create session controls milestone tag (`milestone-05-session-controls`).
-- [x] Create dashboard flow milestone tag (`milestone-06-dashboard-flow`).
-- [x] Create chat basics milestone tag (`milestone-07-chat-basics`).
-- [x] Create live polling milestone tag (`milestone-08-live-polling`).
-- [x] Create polling reliability milestone tag (`milestone-09-polling-fix`).
-- [x] Create A/B/C direction lock milestone tag (`milestone-10-abc-direction-lock`).
-- [x] Create role-based flow milestone tag (`milestone-11-role-flow-ui`).
-- [x] Create SSE/sheet/validation milestone tag (`milestone-12-sse-sheet-validation`).
-- [x] Lock unified designer toolkit as end-product scope (`FULL_SCOPE_MAP.md`).
-- [x] Create milestone tracking file with plain-language summaries (`MILESTONES.md`).
-- [ ] Create milestone tags at key checkpoints.
-- [x] If/when a second top-level folder is added, create and save a VS Code workspace.
-- [x] Define project scope and first deliverable (`FULL_SCOPE_MAP.md`).
-- [x] Lock full-scope feature decisions from Q&A (`FULL_SCOPE_MAP.md`).
-- [x] Break first deliverable into small implementation tasks.
+## P1 Stability
+- [ ] Harden validation/error messages.
+- [ ] Add reconnect/resume continuity pass.
+- [ ] Re-run no-regression API tests.
 
-## MVP Build Tasks
-- [x] Scaffold project structure (`apps/api`, `apps/web`) and root workspace scripts.
-- [x] Implement API auth basics (register/login + bearer auth middleware).
-- [x] Implement campaign model (create campaign, invite token, accept invite).
-- [x] Implement role policy (GM sees all sheets, player sees own sheet).
-- [x] Implement fixed character sheet template (MVP v1).
-- [x] Implement D10 success roll endpoint through `RulesetAdapter`.
-- [x] Implement session event feed (rolls + sheet updates + membership events).
-- [x] Implement persistence for save/load continuity between sessions.
-- [x] Build minimal web UI for login, campaign creation, sheet view, and dice rolls.
-- [x] Add automated API tests for core MVP scenarios.
-- [x] Write run/setup instructions in `README.md`.
+## Deferred Validation Gate (After P0 + P1)
+- [ ] Run full `MVP_SESSION_VALIDATION_CHECKLIST.md` (2 sessions).
+- [ ] Fix blocker issues found.
 
-## MVP Polishing Tasks
-- [x] Add GM session-state control flow (UI + API test coverage + route docs).
-- [x] Improve campaign dashboard flow (summary API, member/invite visibility, event filtering).
-- [x] Add basic text chat (public/private) with access-safe API and UI.
-- [x] Improve private chat UX with member recipient pickers (Player + Master forms).
-- [x] Add quick event filter buttons and selected-campaign highlighting in Player/Master lists.
-- [x] Add local draft save/load for non-API player sheet layout fields.
-- [x] Add auto-refresh polling for events/chat during live sessions.
-- [x] Add stricter roll input validation (`pool`/`difficulty`) with 400-level API errors and tests.
-- [x] Make Master dashboard actions usable (active/passive game views, ruleset usage view, local ruleset drafts panel).
-- [x] Expand Master ruleset draft panel with edit, duplicate, and JSON preview.
-- [x] Add merged Session Timeline panel (events + chat) with source/search filters for Player/Master pages.
+## P2 Rich Session
+- [ ] Add map baseline events.
+- [ ] Add first rule-aware automation helper.
 
-## Next Tasks
-- [ ] Complete MVP validation by running 2 full real sessions with your group.
-- [ ] Use `MVP_SESSION_VALIDATION_CHECKLIST.md` while running those 2 sessions.
-- [x] Replace polling with server-push realtime updates (WebSocket or SSE).
+## P3 Advanced GM Toolkit
+- [ ] Initiative, encounters, NPC manager/creator, loot/economy, advanced map combat.
 
-## Direction-Locked Implementation Tasks
-- [x] Lock A/B/C direction decisions in project docs (`A_B_C_DIRECTION_LOCK.md`).
-- [x] Build role-based page flow: Connection -> Sign-Up Info -> Welcome -> Player/Master branches.
-- [x] Implement separate Player and Master views.
-- [x] Build Master Dashboard shell with locked options.
-- [x] Start character sheet redesign by adding the 10 locked sections (layout first).
-- [x] Keep D10 baseline mechanics (`roll >= difficulty`, count successes) while preparing extension hooks.
+## P4 Ruleset Expansion
+- [ ] Multi-ruleset support with stronger publish/version history.
+
+## P5 Designer Toolkit (Late)
+- [ ] Unified visual + mechanical designer with validation/preview/publish.
+
+## Ops (Recurring)
+- [ ] Commit/push at least daily.
+- [ ] Tag milestones and log them in `MILESTONES.md`.
+
+## Done
+- [x] MVP foundation + polishing baseline.
+- [x] Milestones `milestone-00-bootstrap` to `milestone-12-sse-sheet-validation`.

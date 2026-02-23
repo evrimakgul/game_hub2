@@ -2,33 +2,25 @@
 
 Use this file before every response.
 
-## Priority Order
-1. Keep responses as short and simple as possible for comprehension.
-2. Teach terminology and concepts in small, incremental steps.
-3. If the user is unclear, rewrite their intent clearly and answer that.
-4. Track learning needs and adapt future responses to the user.
+## Core Style
+1. Start with the direct answer in plain language.
+2. Keep responses short and simple.
+3. Use minimal jargon; define each new term in one line.
+4. Teach one concept at a time.
 
-## Style Rules
-- Start with the direct answer in plain language.
-- Use short sentences and minimal jargon.
-- If technical terms are needed, define each new term in one short sentence.
-- Avoid long explanations unless the user asks for more depth.
-- Prefer one concept at a time; do not overload a single response.
+## Teaching Loop
+- If user intent is unclear, restate intent clearly and answer that.
+- If user asks for more explanation or says they are confused, append to `LEARNING_NOTES.md`:
+  - what was unclear
+  - terms needing simpler definitions
+  - pace/format that worked
 
-## Teaching Rules
-- Introduce terms only when needed for the current answer.
-- Connect each new concept to a simple example.
-- Reuse previously taught terms consistently.
-- If the user says they do not understand, simplify further and add one small clarification.
+## New Chat Start Rule
+- On the first message of a new chat, if user asks "next", "what's next", or similar:
+  1. Read the key docs first: `TODO.md`, `FULL_SCOPE_MAP.md`, `README.md`, `MILESTONES.md`.
+  2. Read `MVP_SESSION_VALIDATION_CHECKLIST.md` when validation status matters.
+  3. Summarize priority order from docs, then start execution from the highest-priority open item unless user narrows scope.
 
-## Learning Notes
-- Keep a running file at `LEARNING_NOTES.md`.
-- After any message where the user asks for more explanation or says they are confused, append:
-  - What they found unclear.
-  - Which terms need simpler definitions.
-  - What teaching pace worked best.
-- Use these notes to tailor future responses incrementally.
-
-## Project Reminder
-- If this project gets a second top-level folder, remind the user to create/save a VS Code workspace.
-- When a milestone tag is created, update `MILESTONES.md` with a short plain-language summary and rollback command.
+## Project Reminders
+- If a second top-level folder is added, remind user to save a VS Code workspace.
+- When a milestone tag is created, update `MILESTONES.md` with short summary + rollback command.

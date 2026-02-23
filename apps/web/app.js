@@ -6,22 +6,252 @@ const MASTER_ACTION = {
   ACTIVE_GAMES: "Active Games"
 };
 
-const MASTER_PASSIVE_STATES = new Set(["idle", "paused", "ended"]);
+const DEFAULT_CAMPAIGN_SESSION_STATE = "active-offline";
+const LIVE_CAMPAIGN_SESSION_STATE = "active-live";
+const MASTER_ACTIVE_STATES = new Set(["active-live", "active-offline"]);
+const MASTER_PASSIVE_STATES = new Set(["archived"]);
+const CAMPAIGN_SESSION_STATE_ALIASES = Object.freeze({
+  active: "active-live",
+  "active-live": "active-live",
+  idle: "active-offline",
+  paused: "active-offline",
+  "active-offline": "active-offline",
+  ended: "archived",
+  archived: "archived"
+});
 const RULESET_DRAFTS_STORAGE_KEY = "gamehub.masterRulesetDrafts.v1";
 const PLAYER_LAYOUT_DRAFTS_STORAGE_KEY = "gamehub.playerLayoutDrafts.v1";
-const PLAYER_LAYOUT_DRAFT_FIELDS = [
-  "bioPronouns",
-  "bioArchetype",
+const PLAYER_BIO_FORM_FIELDS = Object.freeze([
+  "bioPlayer",
+  "bioAge",
+  "bioDemeanor",
+  "bioInspiration",
+  "bioNegKarma",
+  "bioPosKarma",
+  "bioXpEarned",
+  "bioXpUsed",
+  "bioSessionXp",
+  "bioXpLeftOver",
+  "bioCr",
+  "bioRank",
+  "bioDateTime",
+  "bioGameSession",
+  "bioGameDateTime",
+  "bioMoney"
+]);
+const PLAYER_BIO_SUBMIT_FIELDS = Object.freeze([
+  "bioPlayer",
+  "bioAge",
+  "bioDemeanor"
+]);
+const PLAYER_COMBAT_FIELDS = Object.freeze([
+  "combatMana",
+  "combatHp",
+  "combatManaRegenPerHour",
+  "combatHpRegen",
+  "combatAcDex",
+  "combatDr",
+  "combatResistances",
+  "combatSoak",
   "combatInitiative",
-  "combatDefense",
-  "combatArmor",
-  "skills",
+  "combatMeleeAttack",
+  "combatMeleeDamage",
+  "combatRangeAttack",
+  "combatRangeDamage",
+  "combatSpellDamage"
+]);
+const PLAYER_SKILL_FIELDS = Object.freeze([
+  Object.freeze({ id: "melee", label: "Melee", abbr: "MEL" }),
+  Object.freeze({ id: "ranged", label: "Ranged", abbr: "RNG" }),
+  Object.freeze({ id: "athletics", label: "Athletics", abbr: "ATH" }),
+  Object.freeze({ id: "stealth", label: "Stealth", abbr: "STL" }),
+  Object.freeze({ id: "alertness", label: "Alertness", abbr: "ALR" }),
+  Object.freeze({ id: "intimidation", label: "Intimidation", abbr: "ITM" }),
+  Object.freeze({ id: "social", label: "Social", abbr: "SOC" }),
+  Object.freeze({ id: "medicine", label: "Medicine", abbr: "MED" }),
+  Object.freeze({ id: "technology", label: "Technology", abbr: "TEC" }),
+  Object.freeze({ id: "academics", label: "Academics", abbr: "ACA" }),
+  Object.freeze({ id: "mechanics", label: "Mechanics", abbr: "MEC" }),
+  Object.freeze({ id: "occultism", label: "Occultism", abbr: "OCC" })
+]);
+const PLAYER_LAYOUT_DRAFT_FIELDS = [
+  ...PLAYER_BIO_FORM_FIELDS,
+  ...PLAYER_COMBAT_FIELDS,
+  ...PLAYER_SKILL_FIELDS.map((field) => field.id),
   "powers",
   "equipment",
   "meritsFlaws",
   "connections",
   "inventory"
 ];
+const PLAYER_LAYOUT_FIELD_SECTION_MAP = Object.freeze({
+  ...Object.fromEntries(
+    PLAYER_BIO_FORM_FIELDS.map((fieldId) => [fieldId, "bio"])
+  ),
+  ...Object.fromEntries(
+    PLAYER_COMBAT_FIELDS.map((fieldId) => [fieldId, "combat"])
+  ),
+  ...Object.fromEntries(
+    PLAYER_SKILL_FIELDS.map((field) => [field.id, "skills"])
+  ),
+  powers: "powersSpells",
+  equipment: "equipment",
+  meritsFlaws: "meritsFlaws",
+  connections: "connections",
+  inventory: "inventory"
+});
+const PLAYER_STAT_GROUPS = Object.freeze([
+  Object.freeze({
+    id: "physical",
+    label: "Physical",
+    fields: Object.freeze([
+      Object.freeze({ id: "strength", label: "Strength" }),
+      Object.freeze({ id: "dexterity", label: "Dexterity" }),
+      Object.freeze({ id: "stamina", label: "Stamina" })
+    ])
+  }),
+  Object.freeze({
+    id: "social",
+    label: "Social",
+    fields: Object.freeze([
+      Object.freeze({ id: "charisma", label: "Charisma" }),
+      Object.freeze({ id: "manipulation", label: "Manipulation" }),
+      Object.freeze({ id: "appearance", label: "Appearance" })
+    ])
+  }),
+  Object.freeze({
+    id: "mental",
+    label: "Mental",
+    fields: Object.freeze([
+      Object.freeze({ id: "intelligence", label: "Intelligence" }),
+      Object.freeze({ id: "perception", label: "Perception" }),
+      Object.freeze({ id: "wits", label: "Wits" })
+    ])
+  })
+]);
+const PLAYER_STAT_FIELDS = Object.freeze(
+  PLAYER_STAT_GROUPS.flatMap((group) =>
+    group.fields.map((field) => ({
+      groupId: group.id,
+      fieldId: field.id,
+      label: field.label
+    }))
+  )
+);
+const PLAYER_SERVER_EDITABLE_FIELDS = Object.freeze([
+  ...PLAYER_BIO_SUBMIT_FIELDS,
+  "equipment",
+  "connections",
+  "inventory"
+]);
+const PLAYER_XP_STAT_OPTIONS = Object.freeze(
+  PLAYER_STAT_FIELDS.map((entry) =>
+    Object.freeze({
+      id: entry.fieldId,
+      label: entry.label
+    })
+  )
+);
+const PLAYER_XP_SKILL_OPTIONS = Object.freeze(
+  PLAYER_SKILL_FIELDS.map((entry) =>
+    Object.freeze({
+      id: entry.id,
+      label: entry.label
+    })
+  )
+);
+// Temporary dev convenience: auto-auth on load so manual login can be skipped for now.
+// Set to false later to restore normal login/register flow.
+const TEMP_LOGIN_BYPASS_ENABLED = true;
+const TEMP_LOGIN_BYPASS_ACCOUNTS = Object.freeze([
+  Object.freeze({
+    label: "Continue as evrim",
+    email: "evrimakgul@gmail.com"
+  }),
+  Object.freeze({
+    label: "Continue as Argo",
+    email: "argonatherthur@gmail.com"
+  })
+]);
+const TEMP_LOGIN_BYPASS_ROLE_EMAIL = Object.freeze({
+  master: "evrimakgul@gmail.com",
+  player: "argonatherthur@gmail.com"
+});
+const PLAYER_SUBPAGE_IDS = new Set([
+  "player-campaigns",
+  "player-character",
+  "player-social"
+]);
+const PLAYER_PAGE_IDS = new Set(["player-menu", ...PLAYER_SUBPAGE_IDS]);
+const MASTER_PAGE_ID_BY_ACTION = Object.freeze({
+  [MASTER_ACTION.HOST]: "master-host",
+  [MASTER_ACTION.CREATE_RULESET]: "master-create-ruleset",
+  [MASTER_ACTION.MY_RULESETS]: "master-my-rulesets",
+  [MASTER_ACTION.PASSIVE_OLD_GAMES]: "master-passive-games",
+  [MASTER_ACTION.ACTIVE_GAMES]: "master-active-games"
+});
+const MASTER_ACTION_BY_PAGE_ID = Object.freeze(
+  Object.fromEntries(
+    Object.entries(MASTER_PAGE_ID_BY_ACTION).map(([action, pageId]) => [
+      pageId,
+      action
+    ])
+  )
+);
+const MASTER_TASK_PAGE_IDS = new Set([
+  ...Object.values(MASTER_PAGE_ID_BY_ACTION),
+  "master-game"
+]);
+const MASTER_PAGE_IDS = new Set(["master-menu", ...MASTER_TASK_PAGE_IDS]);
+const PAGE_PATH_BY_ID = Object.freeze({
+  connection: "/login/",
+  signup: "/signup/",
+  welcome: "/home/",
+  "player-menu": "/player/menu/",
+  "player-campaigns": "/player/campaigns/",
+  "player-character": "/player/character/",
+  "player-social": "/player/social/",
+  "master-menu": "/master/menu/",
+  "master-host": "/master/host/",
+  "master-create-ruleset": "/master/rulesets/new/",
+  "master-my-rulesets": "/master/rulesets/",
+  "master-passive-games": "/master/games/passive/",
+  "master-active-games": "/master/games/active/",
+  "master-game": "/master/game/"
+});
+const PAGE_ID_BY_PATH = Object.freeze({
+  "/": "connection",
+  "/login": "connection",
+  "/login/": "connection",
+  "/signup": "signup",
+  "/signup/": "signup",
+  "/home": "welcome",
+  "/home/": "welcome",
+  "/welcome": "welcome",
+  "/welcome/": "welcome",
+  "/player/menu": "player-menu",
+  "/player/menu/": "player-menu",
+  "/player/campaigns": "player-campaigns",
+  "/player/campaigns/": "player-campaigns",
+  "/player/character": "player-character",
+  "/player/character/": "player-character",
+  "/player/social": "player-social",
+  "/player/social/": "player-social",
+  "/master/menu": "master-menu",
+  "/master/menu/": "master-menu",
+  "/master/host": "master-host",
+  "/master/host/": "master-host",
+  "/master/rulesets": "master-my-rulesets",
+  "/master/rulesets/": "master-my-rulesets",
+  "/master/rulesets/new": "master-create-ruleset",
+  "/master/rulesets/new/": "master-create-ruleset",
+  "/master/games/passive": "master-passive-games",
+  "/master/games/passive/": "master-passive-games",
+  "/master/games/active": "master-active-games",
+  "/master/games/active/": "master-active-games",
+  "/master/game": "master-game",
+  "/master/game/": "master-game"
+});
 
 const state = {
   token: null,
@@ -31,6 +261,9 @@ const state = {
   selectedCampaignName: null,
   selectedCampaignState: null,
   selectedCampaignRole: null,
+  masterSelection: null,
+  playerSelection: null,
+  masterLastGamesListPage: "master-active-games",
   realtimeSource: null,
   realtimePrefix: null,
   realtimeCampaignId: null,
@@ -41,8 +274,30 @@ const state = {
   masterRulesetDrafts: [],
   masterEditingDraftId: null,
   masterPreviewDraftId: null,
-  playerLayoutDrafts: {}
+  playerLayoutDrafts: {},
+  playerPowerCatalog: null,
+  playerMeritsFlawsCatalog: null,
+  playerCurrentCharacter: null,
+  masterCharactersCache: [],
+  masterSelectedCharacterId: null
 };
+
+function normalizeCampaignSessionState(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  return CAMPAIGN_SESSION_STATE_ALIASES[raw] || DEFAULT_CAMPAIGN_SESSION_STATE;
+}
+
+function isLiveCampaignSessionState(value) {
+  return normalizeCampaignSessionState(value) === LIVE_CAMPAIGN_SESSION_STATE;
+}
+
+function isActiveGamesSessionState(value) {
+  return MASTER_ACTIVE_STATES.has(normalizeCampaignSessionState(value));
+}
+
+function isArchivedCampaignSessionState(value) {
+  return MASTER_PASSIVE_STATES.has(normalizeCampaignSessionState(value));
+}
 
 function el(id) {
   return document.getElementById(id);
@@ -68,6 +323,462 @@ function setWelcomeUser() {
   node.textContent = `Logged in as ${state.user.displayName} (${state.user.email})`;
 }
 
+function playerCurrentCharacter() {
+  return state.playerCurrentCharacter || null;
+}
+
+function playerXpBuyStatus() {
+  return playerCurrentCharacter()?.xpBuyStatus || null;
+}
+
+function playerXpBuyBlockedReason() {
+  const character = playerCurrentCharacter();
+  if (!character) {
+    return "Load your character first.";
+  }
+  if (isLiveCampaignSessionState(state.selectedCampaignState)) {
+    return "XP buys are locked while the game session state is active-live.";
+  }
+  if (character.xpBuyStatus?.frozenByPendingCorrection) {
+    return "XP buys are frozen while a GM correction is waiting for player confirmation.";
+  }
+  return "";
+}
+
+function isPlayerXpBuyBaseAllowed() {
+  return !playerXpBuyBlockedReason();
+}
+
+function isPlayerSectionXpBuyAllowed(sectionId) {
+  const baseReason = playerXpBuyBlockedReason();
+  if (baseReason) {
+    return { allowed: false, reason: baseReason };
+  }
+  const character = playerCurrentCharacter();
+  if (!character) {
+    return { allowed: false, reason: "Load your character first." };
+  }
+  if (character.sectionLocks?.[sectionId]?.locked) {
+    return { allowed: false, reason: `${sectionId} is locked by GM.` };
+  }
+  return { allowed: true, reason: "" };
+}
+
+function renderPlayerXpBuyStatus() {
+  const node = el("player-xp-buy-state");
+  if (!node) {
+    return;
+  }
+  const character = playerCurrentCharacter();
+  if (!character) {
+    node.textContent = "XP buys: load your character to view lock state.";
+  } else {
+    const reason = playerXpBuyBlockedReason();
+    node.textContent =
+      reason || "XP buys are available (session is not live, no pending correction).";
+  }
+
+  const statSelect = el("player-xp-stat-select");
+  const statLevel = el("player-xp-stat-level");
+  const statButton = el("player-xp-buy-stat");
+  const skillSelect = el("player-xp-skill-select");
+  const skillLevel = el("player-xp-skill-level");
+  const skillButton = el("player-xp-buy-skill");
+  const enabled = isPlayerXpBuyBaseAllowed();
+  for (const control of [
+    statSelect,
+    statLevel,
+    statButton,
+    skillSelect,
+    skillLevel,
+    skillButton
+  ]) {
+    if (control) {
+      control.disabled = !enabled;
+    }
+  }
+}
+
+function populateXpBuyBaseSelectorsOnce() {
+  const statSelect = el("player-xp-stat-select");
+  const skillSelect = el("player-xp-skill-select");
+  if (statSelect && statSelect.options.length <= 1) {
+    for (const stat of PLAYER_XP_STAT_OPTIONS) {
+      const option = document.createElement("option");
+      option.value = stat.id;
+      option.textContent = stat.label;
+      statSelect.appendChild(option);
+    }
+  }
+  if (skillSelect && skillSelect.options.length <= 1) {
+    for (const skill of PLAYER_XP_SKILL_OPTIONS) {
+      const option = document.createElement("option");
+      option.value = skill.id;
+      option.textContent = skill.label;
+      skillSelect.appendChild(option);
+    }
+  }
+}
+
+async function submitPlayerXpBuy(payload, successMessage = "XP buy applied.") {
+  const campaignId = currentCampaignId("player");
+  const result = await api(`/api/v1/campaigns/${campaignId}/characters/me/xp/buys`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  populatePlayerCharacterForm(result.character);
+  el("player-character-output").textContent = JSON.stringify(result.character, null, 2);
+  await Promise.all([loadEvents("player", true), loadChatMessages("player", true)]);
+  setStatus(successMessage, result.receipt);
+  return result;
+}
+
+function renderPlayerPowerCatalog() {
+  const tierSelect = el("player-power-tier-select");
+  const powerSelect = el("player-power-option-select");
+  const levelInput = el("player-power-level-input");
+  const editButton = el("player-power-edit-button");
+  const statusNode = el("player-power-catalog-state");
+  if (!tierSelect || !powerSelect || !editButton || !statusNode) {
+    return;
+  }
+
+  tierSelect.innerHTML = '<option value="">tier (locked)</option>';
+  powerSelect.innerHTML = '<option value="">power (locked)</option>';
+  tierSelect.disabled = true;
+  powerSelect.disabled = true;
+  if (levelInput) levelInput.disabled = true;
+  editButton.disabled = true;
+  editButton.textContent = "Buy Power (Locked)";
+
+  if (!hasValidSelectionFor("player")) {
+    statusNode.textContent = "Powers list: select a player campaign first.";
+    return;
+  }
+
+  const powerSystem = state.playerPowerCatalog;
+  if (!powerSystem?.tiers?.length) {
+    statusNode.textContent = "Powers list: no ruleset powers loaded yet.";
+    return;
+  }
+
+  for (const tier of powerSystem.tiers) {
+    const option = document.createElement("option");
+    option.value = String(tier.id || "");
+    option.textContent = String(tier.label || tier.title || tier.id || "");
+    tierSelect.appendChild(option);
+  }
+
+  const firstTier = powerSystem.tiers[0];
+  if (firstTier) {
+    tierSelect.value = String(firstTier.id || "");
+    for (const power of firstTier.powers || []) {
+      const option = document.createElement("option");
+      option.value = String(power.id || "");
+      option.textContent = String(power.label || power.id || "");
+      powerSelect.appendChild(option);
+    }
+  }
+  const sectionState = isPlayerSectionXpBuyAllowed("powersSpells");
+  tierSelect.disabled = !sectionState.allowed;
+  powerSelect.disabled = !sectionState.allowed;
+  if (levelInput) levelInput.disabled = !sectionState.allowed;
+  editButton.disabled = !sectionState.allowed;
+  editButton.textContent = sectionState.allowed ? "Buy Power" : "Buy Power (Locked)";
+  statusNode.textContent = sectionState.allowed
+    ? "Powers list loaded from ruleset. Choose a tier/power and target level to buy."
+    : `Powers list loaded from ruleset. ${sectionState.reason}`;
+}
+
+async function loadPlayerPowerCatalog(silent = false) {
+  const campaignId = currentCampaignId("player");
+  const result = await api(
+    `/api/v1/campaigns/${campaignId}/characters/powers/catalog`
+  );
+  state.playerPowerCatalog = result.powerSystem || null;
+  renderPlayerPowerCatalog();
+  if (!silent) {
+    setStatus("Ruleset powers loaded.");
+  }
+  return result.powerSystem;
+}
+
+function renderPlayerMeritsFlawsCatalog() {
+  const typeSelect = el("player-merits-flaws-type-select");
+  const optionSelect = el("player-merits-flaws-option-select");
+  const levelInput = el("player-merits-flaws-level-input");
+  const editButton = el("player-merits-flaws-edit-button");
+  const statusNode = el("player-merits-flaws-catalog-state");
+  if (!typeSelect || !optionSelect || !editButton || !statusNode) {
+    return;
+  }
+
+  optionSelect.innerHTML = '<option value="">option (locked)</option>';
+  typeSelect.disabled = true;
+  optionSelect.disabled = true;
+  if (levelInput) levelInput.disabled = true;
+  editButton.disabled = true;
+  editButton.textContent = "Buy Merit/Flaw (Locked)";
+
+  if (!hasValidSelectionFor("player")) {
+    statusNode.textContent = "Merits/Flaws list: select a player campaign first.";
+    typeSelect.value = "";
+    return;
+  }
+
+  const catalog = state.playerMeritsFlawsCatalog;
+  if (!catalog) {
+    statusNode.textContent = "Merits/Flaws list: no ruleset options loaded yet.";
+    typeSelect.value = "";
+    return;
+  }
+
+  const availableCategories = new Set(catalog.categories || []);
+  for (const option of typeSelect.options) {
+    if (!option.value) {
+      continue;
+    }
+    option.disabled = !availableCategories.has(option.value);
+  }
+
+  const defaultType = availableCategories.has("merits")
+    ? "merits"
+    : availableCategories.has("flaws")
+      ? "flaws"
+      : "";
+  typeSelect.value = defaultType;
+
+  for (const entry of catalog[defaultType] || []) {
+    const option = document.createElement("option");
+    option.value = String(entry.id || "");
+    option.textContent = String(entry.label || entry.id || "");
+    optionSelect.appendChild(option);
+  }
+  const sectionState = isPlayerSectionXpBuyAllowed("meritsFlaws");
+  typeSelect.disabled = !sectionState.allowed;
+  optionSelect.disabled = !sectionState.allowed;
+  if (levelInput) levelInput.disabled = !sectionState.allowed;
+  editButton.disabled = !sectionState.allowed;
+  editButton.textContent = sectionState.allowed
+    ? "Buy Merit/Flaw"
+    : "Buy Merit/Flaw (Locked)";
+  statusNode.textContent = sectionState.allowed
+    ? "Merits/Flaws list loaded from ruleset. Choose type/trait and target level to buy."
+    : `Merits/Flaws list loaded from ruleset. ${sectionState.reason}`;
+}
+
+async function loadPlayerMeritsFlawsCatalog(silent = false) {
+  const campaignId = currentCampaignId("player");
+  const result = await api(
+    `/api/v1/campaigns/${campaignId}/characters/merits-flaws/catalog`
+  );
+  state.playerMeritsFlawsCatalog = result.meritsFlawsSystem || null;
+  renderPlayerMeritsFlawsCatalog();
+  if (!silent) {
+    setStatus("Ruleset merits/flaws loaded.");
+  }
+  return result.meritsFlawsSystem;
+}
+
+function normalizedPagePathname(pathname) {
+  const raw = String(pathname || "/").trim() || "/";
+  if (raw.length > 1 && raw.endsWith("/")) {
+    return raw.slice(0, -1);
+  }
+  return raw;
+}
+
+function pageIdFromPathname(pathname) {
+  const raw = String(pathname || "/");
+  return (
+    PAGE_ID_BY_PATH[raw] ||
+    PAGE_ID_BY_PATH[normalizedPagePathname(raw)] ||
+    null
+  );
+}
+
+function pagePathForId(pageId) {
+  return PAGE_PATH_BY_ID[pageId] || "/";
+}
+
+function isMasterPageId(pageId) {
+  return pageId === "master" || MASTER_PAGE_IDS.has(pageId);
+}
+
+function isMasterSubpageId(pageId) {
+  return MASTER_TASK_PAGE_IDS.has(pageId);
+}
+
+function masterActionForPageId(pageId) {
+  return MASTER_ACTION_BY_PAGE_ID[pageId] || null;
+}
+
+function masterPageIdForAction(action) {
+  return MASTER_PAGE_ID_BY_ACTION[action] || "master-menu";
+}
+
+function domPageIdForPageId(pageId) {
+  if (isMasterSubpageId(pageId)) {
+    return "master";
+  }
+  if (PLAYER_SUBPAGE_IDS.has(pageId)) {
+    return "player";
+  }
+  return pageId;
+}
+
+function isPlayerPageId(pageId) {
+  return pageId === "player" || PLAYER_PAGE_IDS.has(pageId);
+}
+
+function isPlayerSubpageId(pageId) {
+  return PLAYER_SUBPAGE_IDS.has(pageId);
+}
+
+function getRoleSelection(prefix) {
+  if (prefix === "master") {
+    return state.masterSelection || null;
+  }
+  if (prefix === "player") {
+    return state.playerSelection || null;
+  }
+  return null;
+}
+
+function applySharedSelection(selection, prefix) {
+  if (!selection || !prefix) {
+    state.selectedCampaignId = null;
+    state.selectedCampaignName = null;
+    state.selectedCampaignState = null;
+    state.selectedCampaignRole = null;
+    return;
+  }
+  state.selectedCampaignId = selection.campaignId || null;
+  state.selectedCampaignName = selection.campaignName || null;
+  state.selectedCampaignState = selection.sessionState || null;
+  state.selectedCampaignRole = expectedRole(prefix);
+}
+
+function syncSharedSelectionForCurrentPage() {
+  const prefix = getActivePrefix();
+  if (!prefix) {
+    return;
+  }
+  applySharedSelection(getRoleSelection(prefix), prefix);
+}
+
+function setRoleSelection(prefix, campaign) {
+  if (!prefix) {
+    return;
+  }
+  const next =
+    campaign && campaign.id
+      ? {
+          campaignId: campaign.id,
+          campaignName: campaign.name || "",
+          sessionState: normalizeCampaignSessionState(campaign.sessionState)
+        }
+      : null;
+  if (prefix === "master") {
+    state.masterSelection = next;
+  } else if (prefix === "player") {
+    state.playerSelection = next;
+  }
+  const activePrefix = getActivePrefix();
+  if (activePrefix === prefix) {
+    applySharedSelection(next, prefix);
+  }
+}
+
+function syncBrowserPathForPage(pageId, mode = "push") {
+  if (typeof window === "undefined" || !window.history) {
+    return;
+  }
+  const targetPath = pagePathForId(pageId);
+  if (window.location.pathname === targetPath) {
+    return;
+  }
+  if (mode === "replace") {
+    window.history.replaceState({ pageId }, "", targetPath);
+    return;
+  }
+  window.history.pushState({ pageId }, "", targetPath);
+}
+
+async function signInWithAuthResult(result, successMessage = "Logged in.") {
+  state.token = result.token;
+  state.user = result.user;
+  setWelcomeUser();
+  const requestedPage = pageIdFromPathname(window.location.pathname);
+  const nextPage =
+    requestedPage && requestedPage !== "connection" && requestedPage !== "signup"
+      ? requestedPage
+      : "welcome";
+  showPage(nextPage, { historyMode: "replace" });
+  setStatus(successMessage);
+  return result;
+}
+
+async function loginWithTemporaryBypass(email) {
+  if (!TEMP_LOGIN_BYPASS_ENABLED) {
+    throw new Error("Temporary bypass is disabled.");
+  }
+  const result = await api("/api/v1/auth/dev-bypass", {
+    method: "POST",
+    body: JSON.stringify({ email })
+  });
+  await signInWithAuthResult(
+    result,
+    `Temporary login bypass active for ${result.user.displayName}.`
+  );
+  return result;
+}
+
+async function ensureTemporaryRoleLogin(prefix) {
+  if (state.token) {
+    return true;
+  }
+  if (!TEMP_LOGIN_BYPASS_ENABLED) {
+    return false;
+  }
+  const email = TEMP_LOGIN_BYPASS_ROLE_EMAIL[prefix];
+  if (!email) {
+    return false;
+  }
+  await loginWithTemporaryBypass(email);
+  return true;
+}
+
+function renderTemporaryLoginBypassOptions() {
+  const panel = el("temp-login-bypass-panel");
+  const buttons = el("temp-login-bypass-buttons");
+  if (!panel || !buttons) {
+    return;
+  }
+  buttons.innerHTML = "";
+
+  if (!TEMP_LOGIN_BYPASS_ENABLED || TEMP_LOGIN_BYPASS_ACCOUNTS.length === 0) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  for (const account of TEMP_LOGIN_BYPASS_ACCOUNTS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ghost";
+    button.textContent = account.label;
+    button.addEventListener("click", async () => {
+      try {
+        await loginWithTemporaryBypass(account.email);
+      } catch (error) {
+        setStatus(`Temporary login bypass failed. (${error.message})`);
+      }
+    });
+    buttons.appendChild(button);
+  }
+}
+
 function formatDate(iso) {
   if (!iso) {
     return "";
@@ -80,24 +791,34 @@ function formatDate(iso) {
 }
 
 function getActivePrefix() {
-  if (state.currentPage === "player" || state.currentPage === "master") {
-    return state.currentPage;
+  if (state.currentPage === "player") {
+    return "player";
+  }
+  if (isPlayerSubpageId(state.currentPage)) {
+    return "player";
+  }
+  if (isMasterPageId(state.currentPage)) {
+    if (state.currentPage !== "master-game") {
+      return null;
+    }
+    return "master";
   }
   return null;
 }
 
 function hasValidSelectionFor(prefix) {
-  return (
-    Boolean(state.selectedCampaignId) &&
-    state.selectedCampaignRole === expectedRole(prefix)
-  );
+  const selection = getRoleSelection(prefix);
+  return Boolean(selection?.campaignId);
 }
 
-function clearCampaignSelection() {
-  state.selectedCampaignId = null;
-  state.selectedCampaignName = null;
-  state.selectedCampaignState = null;
-  state.selectedCampaignRole = null;
+function clearCampaignSelection(prefix = null) {
+  if (!prefix) {
+    state.masterSelection = null;
+    state.playerSelection = null;
+    applySharedSelection(null, null);
+    return;
+  }
+  setRoleSelection(prefix, null);
 }
 
 function createClientId() {
@@ -370,20 +1091,17 @@ function clearCurrentPlayerLayoutDraft() {
 
 function campaignMatchesMasterFilter(campaign) {
   if (state.masterCampaignFilter === "active") {
-    return campaign.sessionState === "active";
+    return isActiveGamesSessionState(campaign.sessionState);
   }
   if (state.masterCampaignFilter === "passive") {
-    return MASTER_PASSIVE_STATES.has(String(campaign.sessionState || "idle"));
+    return isArchivedCampaignSessionState(campaign.sessionState);
   }
   return true;
 }
 
 function isSelectedCampaignForPrefix(prefix, campaignId) {
-  return (
-    Boolean(state.selectedCampaignId) &&
-    state.selectedCampaignId === campaignId &&
-    state.selectedCampaignRole === expectedRole(prefix)
-  );
+  const selection = getRoleSelection(prefix);
+  return Boolean(selection?.campaignId) && selection.campaignId === campaignId;
 }
 
 function applyCampaignButtonState(button, prefix) {
@@ -458,6 +1176,98 @@ function renderMasterActionButtons() {
   }
 }
 
+function setHidden(id, hidden) {
+  const node = el(id);
+  if (!node) {
+    return;
+  }
+  node.classList.toggle("hidden", hidden);
+}
+
+function playerPageTitleForPage(pageId) {
+  if (pageId === "player-campaigns") {
+    return "Player - Campaigns";
+  }
+  if (pageId === "player-character") {
+    return "Player - Character Sheet";
+  }
+  if (pageId === "player-social") {
+    return "Player - Social / Logs";
+  }
+  return "Player";
+}
+
+function masterPageTitleForPage(pageId) {
+  if (pageId === "master-host") {
+    return "Master - Host a New Game";
+  }
+  if (pageId === "master-create-ruleset") {
+    return "Master - Create a New Ruleset";
+  }
+  if (pageId === "master-my-rulesets") {
+    return "Master - My Rulesets";
+  }
+  if (pageId === "master-passive-games") {
+    return "Master - Passive / Old Games";
+  }
+  if (pageId === "master-active-games") {
+    return "Master - Active Games";
+  }
+  if (pageId === "master-game") {
+    return "Master - Game";
+  }
+  return "Master";
+}
+
+function renderPlayerPageChrome() {
+  const title = el("player-page-title");
+  if (title) {
+    title.textContent = playerPageTitleForPage(state.currentPage);
+  }
+
+  const pageId = state.currentPage;
+  const onCampaigns = pageId === "player-campaigns";
+  const onCharacter = pageId === "player-character";
+  const onSocial = pageId === "player-social";
+  const needsSelection = onCharacter || onSocial;
+  const showGuard = needsSelection && !hasValidSelectionFor("player");
+
+  setHidden("player-selection-guard", !showGuard);
+  setHidden("player-card-campaign-access", !onCampaigns);
+  setHidden("player-card-campaign-snapshot", !onCampaigns);
+  setHidden("player-card-character", !onCharacter || showGuard);
+  setHidden("player-card-rolls", !onSocial || showGuard);
+  setHidden("player-card-chat", !onSocial || showGuard);
+  setHidden("player-card-timeline", !onSocial || showGuard);
+}
+
+function renderMasterPageChrome() {
+  const title = el("master-page-title");
+  const actionsCard = el("master-actions-card");
+  const pageId = state.currentPage;
+  const onTaskPage = isMasterSubpageId(pageId);
+  const onGame = pageId === "master-game";
+  const showGuard = onGame && !hasValidSelectionFor("master");
+
+  if (title) {
+    title.textContent = masterPageTitleForPage(pageId);
+  }
+  if (actionsCard) {
+    actionsCard.classList.toggle("hidden", true);
+  }
+
+  setHidden("master-selection-guard", !showGuard);
+  setHidden("master-card-workspace", !(onTaskPage && !onGame));
+  setHidden("master-card-character-locks", !(onGame && !showGuard));
+  setHidden("master-card-campaign-control", pageId !== "master-host");
+  setHidden("master-card-campaign-snapshot", !(onGame && !showGuard));
+  setHidden("master-card-invites", !(onGame && !showGuard));
+  setHidden("master-card-session-state", !(onGame && !showGuard));
+  setHidden("master-card-events", !(onGame && !showGuard));
+  setHidden("master-card-chat", !(onGame && !showGuard));
+  setHidden("master-card-timeline", !(onGame && !showGuard));
+}
+
 function setMasterWorkspacePanel(panelKey) {
   for (const panel of document.querySelectorAll("[data-master-panel]")) {
     panel.classList.toggle("master-panel--active", panel.dataset.masterPanel === panelKey);
@@ -484,8 +1294,13 @@ function renderMasterCampaignBucket(listId, campaigns, emptyText) {
     button.addEventListener("click", async () => {
       try {
         setSelectedCampaign(campaign);
+        state.masterLastGamesListPage =
+          listId === "master-passive-games-list"
+            ? "master-passive-games"
+            : "master-active-games";
+        showPage("master-game");
         await refreshRoleData("master");
-        setStatus(`Selected master campaign: ${campaign.name}`);
+        setStatus(`Opened master game: ${campaign.name}`);
       } catch (error) {
         setStatus(error.message);
       }
@@ -515,7 +1330,7 @@ function renderMasterRulesetUsage() {
     }
     const row = usage.get(key);
     row.count += 1;
-    if (campaign.sessionState === "active") {
+    if (isActiveGamesSessionState(campaign.sessionState)) {
       row.activeCount += 1;
     }
   }
@@ -655,19 +1470,21 @@ function renderMasterWorkspace() {
     setMasterWorkspacePanel("active");
     renderMasterCampaignBucket(
       "master-active-games-list",
-      state.masterCampaignCache.filter((entry) => entry.sessionState === "active"),
+      state.masterCampaignCache.filter((entry) =>
+        isActiveGamesSessionState(entry.sessionState)
+      ),
       "No active games."
     );
     return;
   }
 
   if (state.masterAction === MASTER_ACTION.PASSIVE_OLD_GAMES) {
-    title.textContent = "Showing idle, paused, and ended campaigns.";
+    title.textContent = "Showing archived campaigns.";
     setMasterWorkspacePanel("passive");
     renderMasterCampaignBucket(
       "master-passive-games-list",
       state.masterCampaignCache.filter((entry) =>
-        MASTER_PASSIVE_STATES.has(String(entry.sessionState || "idle"))
+        isArchivedCampaignSessionState(entry.sessionState)
       ),
       "No passive/old games."
     );
@@ -692,10 +1509,18 @@ function renderMasterWorkspace() {
   setMasterWorkspacePanel("host");
 }
 
-async function activateMasterAction(action) {
+async function activateMasterAction(action, options = {}) {
+  const { syncPage = true } = options;
   state.masterAction = action;
+  if (syncPage) {
+    const targetPage = masterPageIdForAction(action);
+    if (state.currentPage !== targetPage) {
+      showPage(targetPage, { skipRouteLoad: true });
+    }
+  }
 
   if (action === MASTER_ACTION.ACTIVE_GAMES) {
+    state.masterLastGamesListPage = "master-active-games";
     state.masterCampaignFilter = "active";
     await loadCampaigns("master");
     renderMasterWorkspace();
@@ -704,6 +1529,7 @@ async function activateMasterAction(action) {
   }
 
   if (action === MASTER_ACTION.PASSIVE_OLD_GAMES) {
+    state.masterLastGamesListPage = "master-passive-games";
     state.masterCampaignFilter = "passive";
     await loadCampaigns("master");
     renderMasterWorkspace();
@@ -737,6 +1563,16 @@ async function activateMasterAction(action) {
   setStatus("Master workspace: host a new game.");
 }
 
+async function bootstrapPageData(pageName) {
+  if (!state.token) {
+    return;
+  }
+  const masterAction = masterActionForPageId(pageName);
+  if (masterAction) {
+    await activateMasterAction(masterAction, { syncPage: false });
+  }
+}
+
 function renderCampaignState(prefix) {
   const node = el(`${prefix}-campaign-state`);
   if (!node) {
@@ -746,10 +1582,11 @@ function renderCampaignState(prefix) {
     node.textContent = "No campaign selected.";
     return;
   }
+  const selection = getRoleSelection(prefix);
   node.textContent =
-    `Selected: ${state.selectedCampaignName} | ` +
-    `Role: ${state.selectedCampaignRole} | ` +
-    `Session: ${state.selectedCampaignState || "unknown"}`;
+    `Selected: ${selection?.campaignName || ""} | ` +
+    `Role: ${expectedRole(prefix)} | ` +
+    `Session: ${selection?.sessionState || "unknown"}`;
 }
 
 function renderAutoRefreshState(prefix) {
@@ -768,7 +1605,7 @@ function renderAutoRefreshState(prefix) {
   if (
     state.realtimeSource &&
     state.realtimePrefix === prefix &&
-    state.realtimeCampaignId === state.selectedCampaignId
+    state.realtimeCampaignId === getRoleSelection(prefix)?.campaignId
   ) {
     if (state.realtimeSource.readyState === EventSource.OPEN) {
       node.textContent = "Auto-refresh: on (server push for events/chat).";
@@ -793,16 +1630,58 @@ function renderRoleStates() {
   renderAutoRefreshState("master");
   renderCampaignListSelection("player");
   renderCampaignListSelection("master");
+  renderPlayerPageChrome();
+  renderMasterPageChrome();
   renderMasterWorkspace();
 }
 
-function showPage(pageName) {
+function showPage(pageName, options = {}) {
+  const {
+    syncUrl = true,
+    historyMode = "push",
+    skipRouteLoad = false
+  } = options;
+  if (!pageName) {
+    return;
+  }
+
+  if (pageName === "master-game" && !hasValidSelectionFor("master")) {
+    setStatus("Select a game first.");
+    showPage("master-active-games", {
+      syncUrl: true,
+      historyMode: "replace"
+    });
+    return;
+  }
+  if (
+    (pageName === "player-character" || pageName === "player-social") &&
+    !hasValidSelectionFor("player")
+  ) {
+    setStatus("Select a campaign first.");
+  }
+
+  const domPageName = domPageIdForPageId(pageName);
+  const masterAction = masterActionForPageId(pageName);
+  if (masterAction) {
+    state.masterAction = masterAction;
+  }
+
   for (const page of document.querySelectorAll(".page")) {
-    page.classList.toggle("page--active", page.dataset.page === pageName);
+    page.classList.toggle("page--active", page.dataset.page === domPageName);
+  }
+
+  if (syncUrl) {
+    const routeMode =
+      state.currentPage === pageName ? "replace" : historyMode;
+    syncBrowserPathForPage(pageName, routeMode);
   }
   state.currentPage = pageName;
+  syncSharedSelectionForCurrentPage();
   ensureRealtimeStream();
   renderRoleStates();
+  if (!skipRouteLoad) {
+    void bootstrapPageData(pageName).catch(() => {});
+  }
 }
 
 function clearRoleOutputs(prefix) {
@@ -827,14 +1706,23 @@ function clearRoleOutputs(prefix) {
   if (inviteOut) inviteOut.textContent = "";
   if (chars) chars.textContent = "";
   if (prefix === "master") {
+    state.masterCharactersCache = [];
+    state.masterSelectedCharacterId = null;
     if (activeGames) activeGames.innerHTML = "";
     if (passiveGames) passiveGames.innerHTML = "";
     if (rulesets) rulesets.innerHTML = "";
+    renderMasterCharacterLockControls();
   }
   if (prefix === "player") {
     if (playerLayoutState) {
       playerLayoutState.textContent = "Local layout draft: select a campaign first.";
     }
+    state.playerCurrentCharacter = null;
+    state.playerPowerCatalog = null;
+    renderPlayerPowerCatalog();
+    state.playerMeritsFlawsCatalog = null;
+    renderPlayerMeritsFlawsCatalog();
+    renderPlayerXpBuyStatus();
     const form = el("player-character-form");
     if (form) {
       applyPlayerLayoutDraftToForm(form, {});
@@ -848,6 +1736,7 @@ function signOut() {
   state.user = null;
   state.masterAction = MASTER_ACTION.HOST;
   state.masterCampaignFilter = "all";
+  state.masterLastGamesListPage = "master-active-games";
   state.masterCampaignCache = [];
   state.masterEditingDraftId = null;
   clearCampaignSelection();
@@ -881,7 +1770,7 @@ function currentCampaignId(prefix) {
   if (!hasValidSelectionFor(prefix)) {
     throw new Error("Select a campaign first.");
   }
-  return state.selectedCampaignId;
+  return getRoleSelection(prefix)?.campaignId;
 }
 
 function eventQueryPath(prefix) {
@@ -999,7 +1888,7 @@ function ensureRealtimeStream() {
     stopRealtimeStream();
     return;
   }
-  const campaignId = state.selectedCampaignId;
+  const campaignId = getRoleSelection(prefix)?.campaignId;
   if (
     state.realtimeSource &&
     state.realtimePrefix === prefix &&
@@ -1040,7 +1929,12 @@ function ensureRealtimeStream() {
 async function loadCampaigns(prefix) {
   const result = await api("/api/v1/campaigns");
   const targetRole = expectedRole(prefix);
-  const campaigns = result.campaigns.filter((entry) => entry.role === targetRole);
+  const campaigns = result.campaigns
+    .filter((entry) => entry.role === targetRole)
+    .map((entry) => ({
+      ...entry,
+      sessionState: normalizeCampaignSessionState(entry.sessionState)
+    }));
   const visibleCampaigns =
     prefix === "master"
       ? campaigns.filter((entry) => campaignMatchesMasterFilter(entry))
@@ -1085,8 +1979,15 @@ async function loadCampaigns(prefix) {
     button.addEventListener("click", async () => {
       try {
         setSelectedCampaign(campaign);
+        if (prefix === "master") {
+          showPage("master-game");
+          await refreshRoleData("master");
+          setStatus(`Opened master game: ${campaign.name}`);
+          return;
+        }
         await refreshRoleData(prefix);
-        setStatus(`Selected ${prefix} campaign: ${campaign.name}`);
+        showPage("player-character");
+        setStatus(`Opened character sheet for ${campaign.name}.`);
       } catch (error) {
         setStatus(error.message);
       }
@@ -1101,10 +2002,12 @@ async function loadCampaigns(prefix) {
 }
 
 function setSelectedCampaign(campaign) {
-  state.selectedCampaignId = campaign.id;
-  state.selectedCampaignName = campaign.name;
-  state.selectedCampaignState = campaign.sessionState || "idle";
-  state.selectedCampaignRole = campaign.role;
+  const prefix =
+    campaign?.role === "GM" ? "master" : campaign?.role === "PLAYER" ? "player" : null;
+  if (!prefix) {
+    return;
+  }
+  setRoleSelection(prefix, campaign);
   renderRoleStates();
   ensureRealtimeStream();
 }
@@ -1201,27 +2104,79 @@ function setFormValue(form, name, value) {
   field.value = value === undefined || value === null ? "" : String(value);
 }
 
+function getCharacterFieldValue(character, fieldName) {
+  const sectionId = PLAYER_LAYOUT_FIELD_SECTION_MAP[fieldName];
+  if (!sectionId) {
+    return character?.[fieldName] ?? "";
+  }
+  return (
+    character?.sheet?.sections?.[sectionId]?.[fieldName] ??
+    character?.[fieldName] ??
+    ""
+  );
+}
+
 function populatePlayerCharacterForm(character) {
   const form = el("player-character-form");
   if (!form || !character) {
     return;
   }
-  setFormValue(form, "name", character.name || "");
-  setFormValue(form, "notes", character.notes || "");
+  state.playerCurrentCharacter = character;
+  setFormValue(
+    form,
+    "name",
+    character.sheet?.sections?.bio?.name ?? character.name ?? ""
+  );
+  setFormValue(
+    form,
+    "notes",
+    character.sheet?.sections?.notes?.notes ?? character.notes ?? ""
+  );
 
-  const stats = character.stats || {};
-  setFormValue(form, "might", stats.might);
-  setFormValue(form, "agility", stats.agility);
-  setFormValue(form, "mind", stats.mind);
-  setFormValue(form, "spirit", stats.spirit);
-  setFormValue(form, "health", stats.health);
-  setFormValue(form, "stress", stats.stress);
-  loadCurrentPlayerLayoutDraftIntoForm();
+  const stats = character.sheet?.sections?.stats || character.stats || {};
+  for (const { groupId, fieldId } of PLAYER_STAT_FIELDS) {
+    setFormValue(form, fieldId, stats?.[groupId]?.[fieldId]);
+  }
+
+  for (const fieldName of PLAYER_LAYOUT_DRAFT_FIELDS) {
+    setFormValue(form, fieldName, getCharacterFieldValue(character, fieldName));
+  }
+  renderPlayerXpBuyStatus();
+  renderPlayerPowerCatalog();
+  renderPlayerMeritsFlawsCatalog();
 }
 
-async function loadPlayerCharacters(silent = false) {
+async function loadPlayerCharacters(
+  silent = false,
+  { autoCreateIfMissing = true } = {}
+) {
   const campaignId = currentCampaignId("player");
-  const result = await api(`/api/v1/campaigns/${campaignId}/characters`);
+  let result = await api(`/api/v1/campaigns/${campaignId}/characters`);
+
+  if (
+    autoCreateIfMissing &&
+    Array.isArray(result.characters) &&
+    result.characters.length === 0
+  ) {
+    await api(`/api/v1/campaigns/${campaignId}/characters/me`, {
+      method: "PUT",
+      body: JSON.stringify({})
+    });
+    result = await api(`/api/v1/campaigns/${campaignId}/characters`);
+  }
+
+  try {
+    await loadPlayerPowerCatalog(true);
+  } catch {
+    state.playerPowerCatalog = null;
+    renderPlayerPowerCatalog();
+  }
+  try {
+    await loadPlayerMeritsFlawsCatalog(true);
+  } catch {
+    state.playerMeritsFlawsCatalog = null;
+    renderPlayerMeritsFlawsCatalog();
+  }
   el("player-character-output").textContent = JSON.stringify(
     result.characters,
     null,
@@ -1234,7 +2189,9 @@ async function loadPlayerCharacters(silent = false) {
       result.characters[0];
     populatePlayerCharacterForm(myCharacter);
   } else {
+    state.playerCurrentCharacter = null;
     loadCurrentPlayerLayoutDraftIntoForm();
+    renderPlayerXpBuyStatus();
   }
 
   if (!silent) {
@@ -1244,20 +2201,136 @@ async function loadPlayerCharacters(silent = false) {
   return result.characters;
 }
 
+function selectedMasterCharacter() {
+  return (
+    state.masterCharactersCache.find(
+      (entry) => entry.id === state.masterSelectedCharacterId
+    ) || null
+  );
+}
+
+function renderMasterCharacterLockControls() {
+  const select = el("master-character-select");
+  const stateNode = el("master-character-lock-state");
+  const output = el("master-character-output");
+  if (!select || !stateNode || !output) {
+    return;
+  }
+
+  const previousValue = state.masterSelectedCharacterId || "";
+  select.innerHTML = '<option value="">select character</option>';
+  for (const character of state.masterCharactersCache) {
+    const option = document.createElement("option");
+    option.value = character.id;
+    const name = character.name || character.sheet?.sections?.bio?.name || character.id;
+    const owner = character.userId === state.user?.id ? " (you)" : "";
+    option.textContent = `${name}${owner}`;
+    select.appendChild(option);
+  }
+  if (
+    previousValue &&
+    state.masterCharactersCache.some((entry) => entry.id === previousValue)
+  ) {
+    select.value = previousValue;
+  } else {
+    state.masterSelectedCharacterId = select.value || null;
+  }
+
+  const selected = selectedMasterCharacter();
+  if (!selected) {
+    stateNode.textContent = "Load characters and select one to manage section locks.";
+    output.textContent = "";
+    return;
+  }
+
+  const powersLocked = Boolean(selected.sectionLocks?.powersSpells?.locked);
+  const meritsLocked = Boolean(selected.sectionLocks?.meritsFlaws?.locked);
+  stateNode.textContent = `Powers/Spells: ${
+    powersLocked ? "Locked" : "Unlocked"
+  } | Merits/Flaws: ${meritsLocked ? "Locked" : "Unlocked"} | Session: ${
+    state.selectedCampaignState || "unknown"
+  }`;
+  output.textContent = JSON.stringify(
+    {
+      id: selected.id,
+      userId: selected.userId,
+      name: selected.name,
+      sectionLocks: selected.sectionLocks,
+      xpBuyStatus: selected.xpBuyStatus
+    },
+    null,
+    2
+  );
+}
+
+async function loadMasterCharacters(silent = false) {
+  const campaignId = currentCampaignId("master");
+  const result = await api(`/api/v1/campaigns/${campaignId}/characters`);
+  state.masterCharactersCache = result.characters || [];
+  if (
+    !state.masterSelectedCharacterId ||
+    !state.masterCharactersCache.some(
+      (entry) => entry.id === state.masterSelectedCharacterId
+    )
+  ) {
+    state.masterSelectedCharacterId = state.masterCharactersCache[0]?.id || null;
+  }
+  renderMasterCharacterLockControls();
+  if (!silent) {
+    setStatus("Master character list loaded.");
+  }
+  return state.masterCharactersCache;
+}
+
+async function applyMasterSectionLock(sectionId, locked) {
+  const campaignId = currentCampaignId("master");
+  const character = selectedMasterCharacter();
+  if (!character) {
+    throw new Error("Select a character first.");
+  }
+  const result = await api(
+    `/api/v1/campaigns/${campaignId}/characters/${character.id}/section-locks`,
+    {
+      method: "POST",
+      body: JSON.stringify({ sectionId, locked })
+    }
+  );
+  state.masterCharactersCache = state.masterCharactersCache.map((entry) =>
+    entry.id === result.character.id ? result.character : entry
+  );
+  renderMasterCharacterLockControls();
+  return result.character;
+}
+
 async function loadSummary(prefix) {
   const campaignId = currentCampaignId(prefix);
   const summary = await api(`/api/v1/campaigns/${campaignId}/summary`);
-  state.selectedCampaignName = summary.campaign.name;
-  state.selectedCampaignState = summary.campaign.sessionState || state.selectedCampaignState;
-  state.selectedCampaignRole = summary.campaign.role || state.selectedCampaignRole;
+  const normalizedSessionState = normalizeCampaignSessionState(
+    summary.campaign.sessionState
+  );
+  setRoleSelection(prefix, {
+    id: summary.campaign.id || campaignId,
+    name: summary.campaign.name,
+    sessionState: normalizedSessionState,
+    role: summary.campaign.role || expectedRole(prefix)
+  });
   renderRoleStates();
+
+  if (prefix === "master") {
+    const sessionSelect = el("master-session-form")?.querySelector(
+      'select[name="state"]'
+    );
+    if (sessionSelect) {
+      sessionSelect.value = normalizedSessionState;
+    }
+  }
 
   el(`${prefix}-summary-output`).textContent = JSON.stringify(
     {
       campaign: summary.campaign.name,
       role: summary.campaign.role,
       ruleset: summary.campaign.rulesetId,
-      sessionState: summary.campaign.sessionState,
+      sessionState: normalizedSessionState,
       memberCount: summary.memberCount,
       pendingInvitesCount: summary.pendingInvitesCount
     },
@@ -1267,6 +2340,11 @@ async function loadSummary(prefix) {
   renderMembers(prefix, summary.members);
   renderInvites(prefix, summary.pendingInvites, summary.pendingInvitesCount);
   renderChatRecipientOptions(prefix, summary.members);
+  if (prefix === "player") {
+    renderPlayerXpBuyStatus();
+    renderPlayerPowerCatalog();
+    renderPlayerMeritsFlawsCatalog();
+  }
 }
 
 async function loadEvents(prefix, silent = false) {
@@ -1321,20 +2399,47 @@ async function loadTimeline(prefix, silent = false) {
 }
 
 async function refreshRoleData(prefix) {
-  await loadSummary(prefix);
-  await loadEvents(prefix, true);
-  await loadChatMessages(prefix, true);
-  await loadTimeline(prefix, true);
-  if (prefix === "player") {
-    await loadPlayerCharacters(true);
+  try {
+    await loadSummary(prefix);
+    await loadEvents(prefix, true);
+    await loadChatMessages(prefix, true);
+    await loadTimeline(prefix, true);
+    if (prefix === "player") {
+      await loadPlayerCharacters(true);
+    }
+    if (prefix === "master") {
+      await loadCampaigns("master");
+      try {
+        await loadMasterCharacters(true);
+      } catch {}
+    }
+    ensureRealtimeStream();
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (
+      message.includes("Campaign not found") ||
+      message.includes("Campaign access denied")
+    ) {
+      clearCampaignSelection(prefix);
+      renderRoleStates();
+      if (prefix === "master" && state.currentPage === "master-game") {
+        state.masterLastGamesListPage = "master-active-games";
+        showPage("master-active-games", { historyMode: "replace" });
+      }
+      if (
+        prefix === "player" &&
+        (state.currentPage === "player-character" || state.currentPage === "player-social")
+      ) {
+        showPage("player-campaigns", { historyMode: "replace" });
+      }
+    }
+    throw error;
   }
-  if (prefix === "master") {
-    await loadCampaigns("master");
-  }
-  ensureRealtimeStream();
 }
 
 function attachAuthHandlers() {
+  renderTemporaryLoginBypassOptions();
+
   el("go-signup").addEventListener("click", () => {
     showPage("signup");
   });
@@ -1358,11 +2463,7 @@ function attachAuthHandlers() {
           password: form.get("password")
         })
       });
-      state.token = result.token;
-      state.user = result.user;
-      setWelcomeUser();
-      showPage("welcome");
-      setStatus("Logged in.");
+      await signInWithAuthResult(result, "Logged in.");
     } catch (error) {
       setStatus(error.message);
     }
@@ -1379,28 +2480,34 @@ function attachAuthHandlers() {
           password: form.get("password")
         })
       });
-      state.token = result.token;
-      state.user = result.user;
-      setWelcomeUser();
-      showPage("welcome");
-      setStatus("Account created.");
+      await signInWithAuthResult(result, "Account created.");
     } catch (error) {
       setStatus(error.message);
     }
   });
 }
 
+function navigateBackOr(fallbackPage) {
+  if (typeof window !== "undefined" && window.history && window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+  showPage(fallbackPage);
+}
+
+async function openMasterActionPage(action) {
+  const pageId = masterPageIdForAction(action);
+  showPage(pageId, { skipRouteLoad: true });
+  await activateMasterAction(action, { syncPage: false });
+  ensureRealtimeStream();
+}
+
 function attachWelcomeHandlers() {
   el("enter-player").addEventListener("click", async () => {
     try {
-      showPage("player");
-      if (!hasValidSelectionFor("player")) {
-        clearCampaignSelection();
-        clearRoleOutputs("player");
-      }
-      await loadCampaigns("player");
-      ensureRealtimeStream();
-      setStatus("Player view opened.");
+      await ensureTemporaryRoleLogin("player");
+      showPage("player-menu");
+      setStatus("Player menu opened.");
     } catch (error) {
       setStatus(error.message);
     }
@@ -1408,14 +2515,9 @@ function attachWelcomeHandlers() {
 
   el("enter-master").addEventListener("click", async () => {
     try {
-      showPage("master");
-      if (!hasValidSelectionFor("master")) {
-        clearCampaignSelection();
-        clearRoleOutputs("master");
-      }
-      await loadCampaigns("master");
-      ensureRealtimeStream();
-      setStatus("Master view opened.");
+      await ensureTemporaryRoleLogin("master");
+      showPage("master-menu");
+      setStatus("Master menu opened.");
     } catch (error) {
       setStatus(error.message);
     }
@@ -1424,8 +2526,124 @@ function attachWelcomeHandlers() {
   el("logout-from-welcome").addEventListener("click", signOut);
 }
 
+function attachHubHandlers() {
+  el("player-menu-home")?.addEventListener("click", () => showPage("welcome"));
+  el("player-menu-back")?.addEventListener("click", () => navigateBackOr("welcome"));
+  el("player-menu-logout")?.addEventListener("click", signOut);
+
+  el("player-menu-campaigns")?.addEventListener("click", async () => {
+    try {
+      await ensureTemporaryRoleLogin("player");
+      showPage("player-campaigns");
+      if (!hasValidSelectionFor("player")) {
+        clearCampaignSelection("player");
+        clearRoleOutputs("player");
+      }
+      await loadCampaigns("player");
+      setStatus("Player campaigns page opened.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  el("player-menu-character")?.addEventListener("click", () => {
+    (async () => {
+      try {
+        await ensureTemporaryRoleLogin("player");
+        showPage("player-character");
+        if (!hasValidSelectionFor("player")) {
+          setStatus("Select a campaign first.");
+        }
+      } catch (error) {
+        setStatus(error.message);
+      }
+    })();
+  });
+  el("player-menu-social")?.addEventListener("click", () => {
+    (async () => {
+      try {
+        await ensureTemporaryRoleLogin("player");
+        showPage("player-social");
+        if (!hasValidSelectionFor("player")) {
+          setStatus("Select a campaign first.");
+        }
+      } catch (error) {
+        setStatus(error.message);
+      }
+    })();
+  });
+
+  el("master-menu-home")?.addEventListener("click", () => showPage("welcome"));
+  el("master-menu-back")?.addEventListener("click", () => navigateBackOr("welcome"));
+  el("master-menu-logout")?.addEventListener("click", signOut);
+
+  el("master-menu-host")?.addEventListener("click", async () => {
+    try {
+      await ensureTemporaryRoleLogin("master");
+      await openMasterActionPage(MASTER_ACTION.HOST);
+      setStatus("Master page opened: Host a New Game.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  el("master-menu-create-ruleset")?.addEventListener("click", async () => {
+    try {
+      await ensureTemporaryRoleLogin("master");
+      await openMasterActionPage(MASTER_ACTION.CREATE_RULESET);
+      setStatus("Master page opened: Create a New Ruleset.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  el("master-menu-my-rulesets")?.addEventListener("click", async () => {
+    try {
+      await ensureTemporaryRoleLogin("master");
+      await openMasterActionPage(MASTER_ACTION.MY_RULESETS);
+      setStatus("Master page opened: My Rulesets.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  el("master-menu-passive-games")?.addEventListener("click", async () => {
+    try {
+      await ensureTemporaryRoleLogin("master");
+      state.masterLastGamesListPage = "master-passive-games";
+      await openMasterActionPage(MASTER_ACTION.PASSIVE_OLD_GAMES);
+      setStatus("Master page opened: Passive / Old Games.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  el("master-menu-active-games")?.addEventListener("click", async () => {
+    try {
+      await ensureTemporaryRoleLogin("master");
+      state.masterLastGamesListPage = "master-active-games";
+      await openMasterActionPage(MASTER_ACTION.ACTIVE_GAMES);
+      setStatus("Master page opened: Active Games.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+}
+
 function attachPlayerHandlers() {
-  el("player-back-welcome").addEventListener("click", () => showPage("welcome"));
+  el("player-go-home")?.addEventListener("click", () => showPage("welcome"));
+  el("player-go-menu")?.addEventListener("click", () => showPage("player-menu"));
+  el("player-back-welcome").addEventListener("click", () => {
+    if (state.currentPage === "player-campaigns") {
+      showPage("player-menu");
+      return;
+    }
+    navigateBackOr("player-menu");
+  });
+  el("player-guard-go-campaigns")?.addEventListener("click", async () => {
+    try {
+      showPage("player-campaigns");
+      await loadCampaigns("player");
+      setStatus("Player campaigns page opened.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
   el("player-logout").addEventListener("click", signOut);
   attachEventQuickFilters("player");
   const playerChatForm = el("player-chat-form");
@@ -1435,6 +2653,8 @@ function attachPlayerHandlers() {
   );
   syncChatRecipientState("player");
   renderPlayerLayoutDraftState("Local layout draft: select a campaign first.");
+  populateXpBuyBaseSelectorsOnce();
+  renderPlayerXpBuyStatus();
 
   el("player-load-timeline").addEventListener("click", async () => {
     try {
@@ -1480,7 +2700,121 @@ function attachPlayerHandlers() {
   el("player-load-campaigns").addEventListener("click", async () => {
     try {
       await loadCampaigns("player");
+      renderPlayerPowerCatalog();
+      renderPlayerMeritsFlawsCatalog();
       setStatus("Player campaigns loaded.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-power-tier-select")?.addEventListener("change", (event) => {
+    const tierId = String(event.target?.value || "");
+    const powerSelect = el("player-power-option-select");
+    if (!powerSelect) {
+      return;
+    }
+    powerSelect.innerHTML = '<option value="">power (locked)</option>';
+    const tier = state.playerPowerCatalog?.tiers?.find(
+      (entry) => String(entry.id || "") === tierId
+    );
+    for (const power of tier?.powers || []) {
+      const option = document.createElement("option");
+      option.value = String(power.id || "");
+      option.textContent = String(power.label || power.id || "");
+      powerSelect.appendChild(option);
+    }
+  });
+
+  el("player-power-edit-button")?.addEventListener("click", () => {
+    (async () => {
+      try {
+        const tierId = String(el("player-power-tier-select")?.value || "").trim();
+        const powerId = String(el("player-power-option-select")?.value || "").trim();
+        const toLevel = Number(el("player-power-level-input")?.value || 0);
+        if (!tierId || !powerId) {
+          throw new Error("Select a tier and power first.");
+        }
+        await submitPlayerXpBuy(
+          {
+            kind: "POWER",
+            tierId,
+            powerId,
+            toLevel
+          },
+          "Power XP buy applied."
+        );
+      } catch (error) {
+        setStatus(error.message);
+      }
+    })();
+  });
+
+  el("player-merits-flaws-type-select")?.addEventListener("change", (event) => {
+    const type = String(event.target?.value || "");
+    const optionSelect = el("player-merits-flaws-option-select");
+    if (!optionSelect) {
+      return;
+    }
+    optionSelect.innerHTML = '<option value="">option (locked)</option>';
+    for (const entry of state.playerMeritsFlawsCatalog?.[type] || []) {
+      const option = document.createElement("option");
+      option.value = String(entry.id || "");
+      option.textContent = String(entry.label || entry.id || "");
+      optionSelect.appendChild(option);
+    }
+  });
+
+  el("player-merits-flaws-edit-button")?.addEventListener("click", () => {
+    (async () => {
+      try {
+        const type = String(el("player-merits-flaws-type-select")?.value || "").trim();
+        const traitId = String(el("player-merits-flaws-option-select")?.value || "").trim();
+        const toLevel = Number(el("player-merits-flaws-level-input")?.value || 0);
+        if (!type || !traitId) {
+          throw new Error("Select a merit/flaw type and option first.");
+        }
+        await submitPlayerXpBuy(
+          {
+            kind: type === "flaws" ? "FLAW" : "MERIT",
+            traitId,
+            toLevel
+          },
+          "Merit/Flaw XP buy applied."
+        );
+      } catch (error) {
+        setStatus(error.message);
+      }
+    })();
+  });
+
+  el("player-xp-buy-stat")?.addEventListener("click", async () => {
+    try {
+      const fieldId = String(el("player-xp-stat-select")?.value || "").trim();
+      const toLevel = Number(el("player-xp-stat-level")?.value || 0);
+      if (!fieldId) {
+        throw new Error("Select a stat first.");
+      }
+      await submitPlayerXpBuy(
+        { kind: "STAT", fieldId, toLevel },
+        "Stat XP buy applied."
+      );
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-xp-buy-skill")?.addEventListener("click", async () => {
+    try {
+      const fieldId = String(el("player-xp-skill-select")?.value || "").trim();
+      const toLevel = Number(el("player-xp-skill-level")?.value || 0);
+      if (!fieldId) {
+        throw new Error("Select a skill first.");
+      }
+      await submitPlayerXpBuy(
+        { kind: "SKILL", fieldId, toLevel },
+        "Skill XP buy applied."
+      );
     } catch (error) {
       setStatus(error.message);
     }
@@ -1510,6 +2844,48 @@ function attachPlayerHandlers() {
     }
   });
 
+  el("player-apply-session-xp").addEventListener("click", async () => {
+    try {
+      const campaignId = currentCampaignId("player");
+      const result = await api(
+        `/api/v1/campaigns/${campaignId}/characters/me/xp/session-claim`,
+        {
+          method: "POST"
+        }
+      );
+      populatePlayerCharacterForm(result.character);
+      el("player-character-output").textContent = JSON.stringify(
+        result.character,
+        null,
+        2
+      );
+      await Promise.all([
+        loadEvents("player", true),
+        loadChatMessages("player", true)
+      ]);
+      setStatus("Session XP applied.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("player-advance-game-session").addEventListener("click", async () => {
+    try {
+      const campaignId = currentCampaignId("player");
+      const result = await api(`/api/v1/campaigns/${campaignId}/game-session/advance`, {
+        method: "POST"
+      });
+      await Promise.all([
+        loadPlayerCharacters(true),
+        loadEvents("player", true),
+        loadChatMessages("player", true)
+      ]);
+      setStatus(`Game session advanced to ${result.gameSession}.`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
   el("player-character-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.target);
@@ -1518,24 +2894,14 @@ function attachPlayerHandlers() {
       const payload = {};
       const name = String(form.get("name") || "").trim();
       const notes = String(form.get("notes") || "");
-      if (name) {
-        payload.name = name;
+      if (!name) {
+        throw new Error("Character name cannot be empty.");
       }
+      payload.name = name;
       payload.notes = notes;
 
-      const statNames = ["might", "agility", "mind", "spirit", "health", "stress"];
-      const statValues = Object.fromEntries(
-        statNames.map((key) => [key, String(form.get(key) || "").trim()])
-      );
-      const hasAnyStat = statNames.some((key) => statValues[key] !== "");
-      if (hasAnyStat) {
-        const hasAllStats = statNames.every((key) => statValues[key] !== "");
-        if (!hasAllStats) {
-          throw new Error("Fill all stat fields to update stats.");
-        }
-        payload.stats = Object.fromEntries(
-          statNames.map((key) => [key, Number(statValues[key])])
-        );
+      for (const fieldName of PLAYER_SERVER_EDITABLE_FIELDS) {
+        payload[fieldName] = String(form.get(fieldName) || "");
       }
 
       const result = await api(`/api/v1/campaigns/${campaignId}/characters/me`, {
@@ -1543,7 +2909,6 @@ function attachPlayerHandlers() {
         body: JSON.stringify(payload)
       });
       populatePlayerCharacterForm(result.character);
-      saveCurrentPlayerLayoutDraft();
       el("player-character-output").textContent = JSON.stringify(
         result.character,
         null,
@@ -1630,7 +2995,34 @@ function attachPlayerHandlers() {
 }
 
 function attachMasterHandlers() {
-  el("master-back-welcome").addEventListener("click", () => showPage("welcome"));
+  el("master-go-home")?.addEventListener("click", () => showPage("welcome"));
+  el("master-go-menu")?.addEventListener("click", () => showPage("master-menu"));
+  el("master-back-welcome").addEventListener("click", () => {
+    if (state.currentPage === "master-game") {
+      showPage(state.masterLastGamesListPage || "master-active-games");
+      return;
+    }
+    if (
+      state.currentPage === "master-host" ||
+      state.currentPage === "master-create-ruleset" ||
+      state.currentPage === "master-my-rulesets" ||
+      state.currentPage === "master-passive-games" ||
+      state.currentPage === "master-active-games"
+    ) {
+      showPage("master-menu");
+      return;
+    }
+    navigateBackOr("master-menu");
+  });
+  el("master-guard-go-active-games")?.addEventListener("click", async () => {
+    try {
+      state.masterLastGamesListPage = "master-active-games";
+      await openMasterActionPage(MASTER_ACTION.ACTIVE_GAMES);
+      setStatus("Active Games page opened.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
   el("master-logout").addEventListener("click", signOut);
   attachEventQuickFilters("master");
   const masterChatForm = el("master-chat-form");
@@ -1639,6 +3031,56 @@ function attachMasterHandlers() {
     syncChatRecipientState("master")
   );
   syncChatRecipientState("master");
+  renderMasterCharacterLockControls();
+
+  el("master-load-characters")?.addEventListener("click", async () => {
+    try {
+      await loadMasterCharacters();
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-character-select")?.addEventListener("change", (event) => {
+    state.masterSelectedCharacterId = String(event.target?.value || "").trim() || null;
+    renderMasterCharacterLockControls();
+  });
+
+  el("master-unlock-powers")?.addEventListener("click", async () => {
+    try {
+      await applyMasterSectionLock("powersSpells", false);
+      setStatus("Powers / Spells unlocked for selected character.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-lock-powers")?.addEventListener("click", async () => {
+    try {
+      await applyMasterSectionLock("powersSpells", true);
+      setStatus("Powers / Spells locked for selected character.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-unlock-merits-flaws")?.addEventListener("click", async () => {
+    try {
+      await applyMasterSectionLock("meritsFlaws", false);
+      setStatus("Merits / Flaws unlocked for selected character.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-lock-merits-flaws")?.addEventListener("click", async () => {
+    try {
+      await applyMasterSectionLock("meritsFlaws", true);
+      setStatus("Merits / Flaws locked for selected character.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
 
   el("master-load-timeline").addEventListener("click", async () => {
     try {
@@ -1794,7 +3236,15 @@ function attachMasterHandlers() {
         method: "POST",
         body: JSON.stringify({ state: form.get("state") })
       });
-      state.selectedCampaignState = result.campaign.sessionState;
+      const current = getRoleSelection("master");
+      if (current?.campaignId === campaignId) {
+        setRoleSelection("master", {
+          id: current.campaignId,
+          name: current.campaignName,
+          sessionState: result.campaign.sessionState,
+          role: "GM"
+        });
+      }
       await refreshRoleData("master");
       setStatus("Session state updated.");
     } catch (error) {
@@ -1852,17 +3302,28 @@ function initialize() {
   loadPlayerLayoutDrafts();
   attachAuthHandlers();
   attachWelcomeHandlers();
+  attachHubHandlers();
   attachPlayerHandlers();
   attachMasterHandlers();
   renderMasterWorkspace();
-  showPage("connection");
+  const initialPage = pageIdFromPathname(window.location.pathname) || "connection";
+  showPage(initialPage, { syncUrl: false });
   setWelcomeUser();
   renderRoleStates();
+  if (TEMP_LOGIN_BYPASS_ENABLED) {
+    setStatus("Ready. Temporary quick login enabled for evrim and Argo.");
+    return;
+  }
   setStatus("Ready. Login first.");
 }
 
 window.addEventListener("beforeunload", () => {
   stopRealtimeStream();
+});
+
+window.addEventListener("popstate", () => {
+  const pageId = pageIdFromPathname(window.location.pathname) || "connection";
+  showPage(pageId, { syncUrl: false });
 });
 
 initialize();

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Game Hub</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="shell">
@@ -17,6 +17,10 @@
             <input name="password" type="password" placeholder="Password" required />
             <button type="submit">Login</button>
           </form>
+          <div id="temp-login-bypass-panel" class="stack hidden">
+            <p class="muted">Temporary quick login (dev only)</p>
+            <div id="temp-login-bypass-buttons" class="stack"></div>
+          </div>
           <div class="row">
             <button id="go-signup" type="button" class="ghost">Sign up with email</button>
             <button id="discord-signin" type="button" class="ghost">
@@ -51,16 +55,58 @@
         </div>
       </section>
 
+      <section class="page" data-page="player-menu">
+        <div class="card auth-card">
+          <h2>Player Menu</h2>
+          <div class="row">
+            <button id="player-menu-home" type="button" class="ghost">Home</button>
+            <button id="player-menu-back" type="button" class="ghost">Back</button>
+            <button id="player-menu-logout" type="button" class="ghost">Logout</button>
+          </div>
+          <div class="stack">
+            <button id="player-menu-campaigns" type="button">Campaigns</button>
+            <button id="player-menu-character" type="button">Character Sheet</button>
+            <button id="player-menu-social" type="button">Social / Logs</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="master-menu">
+        <div class="card auth-card">
+          <h2>Master Menu</h2>
+          <div class="row">
+            <button id="master-menu-home" type="button" class="ghost">Home</button>
+            <button id="master-menu-back" type="button" class="ghost">Back</button>
+            <button id="master-menu-logout" type="button" class="ghost">Logout</button>
+          </div>
+          <div class="stack">
+            <button id="master-menu-host" type="button">Host a New Game</button>
+            <button id="master-menu-create-ruleset" type="button">Create a New Ruleset</button>
+            <button id="master-menu-my-rulesets" type="button">My Rulesets</button>
+            <button id="master-menu-passive-games" type="button">Passive / Old Games</button>
+            <button id="master-menu-active-games" type="button">Active Games</button>
+          </div>
+        </div>
+      </section>
+
       <section class="page" data-page="player">
         <div class="topbar">
-          <h2>Player Character Sheet</h2>
+          <h2 id="player-page-title">Player</h2>
           <div class="row">
+            <button id="player-go-home" type="button" class="ghost">Home</button>
+            <button id="player-go-menu" type="button" class="ghost">Player Menu</button>
             <button id="player-back-welcome" type="button" class="ghost">Back</button>
             <button id="player-logout" type="button" class="ghost">Logout</button>
           </div>
         </div>
 
-        <section class="card">
+        <section id="player-selection-guard" class="card hidden">
+          <h3>Select a Campaign First</h3>
+          <p class="muted">Go to Player Campaigns and choose a campaign before opening this page.</p>
+          <button id="player-guard-go-campaigns" type="button" class="ghost">Go to Campaigns</button>
+        </section>
+
+        <section id="player-card-campaign-access" class="card">
           <h3>Campaign Access</h3>
           <form id="player-accept-invite-form">
             <input name="token" placeholder="Invite token" required />
@@ -74,7 +120,7 @@
           <ul id="player-campaign-list"></ul>
         </section>
 
-        <section class="card">
+        <section id="player-card-campaign-snapshot" class="card">
           <h3>Campaign Snapshot</h3>
           <button id="player-refresh-summary" type="button">Refresh</button>
           <pre id="player-summary-output"></pre>
@@ -82,97 +128,320 @@
           <ul id="player-members-output"></ul>
         </section>
 
-        <section class="card">
+        <section id="player-card-character" class="card">
           <h3>Character Sheet</h3>
-          <p class="muted">Layout-first redesign with the 10 locked sections.</p>
+          <p class="muted">Progression fields are display-only here. Use XP Buy controls when the session is not live.</p>
           <form id="player-character-form" class="sheet-form">
             <div class="sheet-grid">
               <fieldset class="sheet-section">
                 <legend>1. Bio / General Info</legend>
+                <div class="muted">Character</div>
+                <label>
+                  Player
+                  <input name="bioPlayer" placeholder="Player name" />
+                </label>
                 <label>
                   Name
                   <input name="name" placeholder="Character name" />
                 </label>
                 <label>
-                  Pronouns
-                  <input name="bioPronouns" placeholder="Local layout draft field" />
+                  Age
+                  <input name="bioAge" placeholder="Age" />
                 </label>
                 <label>
-                  Archetype
-                  <input name="bioArchetype" placeholder="Local layout draft field" />
+                  Demeanor
+                  <input name="bioDemeanor" placeholder="Demeanor" />
+                </label>
+
+                <div class="muted">Global (GM)</div>
+                <label>
+                  Inspiration
+                  <input name="bioInspiration" type="number" min="-10" max="10" placeholder="Inspiration" />
+                </label>
+                <label>
+                  Neg. Karma
+                  <input name="bioNegKarma" type="number" min="-24" max="24" placeholder="Neg. Karma" />
+                </label>
+                <label>
+                  Pos. Karma
+                  <input name="bioPosKarma" type="number" min="-24" max="24" placeholder="Pos. Karma" />
+                </label>
+
+                <div class="muted">XP</div>
+                <label>
+                  XP Earned
+                  <input name="bioXpEarned" type="number" readonly placeholder="Computed" />
+                </label>
+                <label>
+                  XP Used
+                  <input name="bioXpUsed" type="number" readonly placeholder="Computed later" />
+                </label>
+                <label>
+                  Session XP (GM)
+                  <div class="row">
+                    <input name="bioSessionXp" type="number" min="0" max="9999" placeholder="Session XP" />
+                    <button id="player-apply-session-xp" type="button" class="ghost">Apply</button>
+                  </div>
+                </label>
+                <label>
+                  XP Left Over
+                  <input name="bioXpLeftOver" type="number" readonly placeholder="Computed" />
+                </label>
+                <label>
+                  CR
+                  <input name="bioCr" type="number" readonly placeholder="Computed" />
+                </label>
+                <label>
+                  Rank
+                  <input name="bioRank" readonly placeholder="Computed" />
+                </label>
+
+                <div class="muted">Game</div>
+                <label>
+                  Date/Time
+                  <input name="bioDateTime" readonly placeholder="Actual date/time" />
+                </label>
+                <label>
+                  Game Session (GM)
+                  <div class="row">
+                    <input name="bioGameSession" type="number" min="0" max="9999" placeholder="Game Session" />
+                    <button id="player-advance-game-session" type="button" class="ghost">+1</button>
+                  </div>
+                </label>
+                <label>
+                  Game Date/Time (GM)
+                  <input name="bioGameDateTime" placeholder="In-world date/time" />
+                </label>
+                <label>
+                  Money (GM)
+                  <input name="bioMoney" type="number" placeholder="Money" />
                 </label>
               </fieldset>
 
               <fieldset class="sheet-section">
                 <legend>2. Combat Summary</legend>
+                <div class="muted">Defensive</div>
+                <label>
+                  Mana
+                  <input name="combatMana" type="number" min="0" max="9999" placeholder="Mana" readonly />
+                </label>
+                <label>
+                  HP
+                  <input name="combatHp" type="number" min="0" max="9999" placeholder="HP" readonly />
+                </label>
+                <label>
+                  Mana Regen / per hour
+                  <input name="combatManaRegenPerHour" type="number" min="0" max="9999" placeholder="Mana Regen / per hour" readonly />
+                </label>
+                <label>
+                  HP Regen
+                  <input name="combatHpRegen" type="number" min="0" max="9999" placeholder="HP Regen" readonly />
+                </label>
+                <label>
+                  AC (Dex)
+                  <input name="combatAcDex" type="number" min="0" max="9999" placeholder="AC (Dex)" readonly />
+                </label>
+                <label>
+                  DR
+                  <input name="combatDr" type="number" min="0" max="9999" placeholder="DR" readonly />
+                </label>
+                <label>
+                  Resistance(s)
+                  <input name="combatResistances" type="number" min="0" max="9999" placeholder="Resistance(s)" readonly />
+                </label>
+                <label>
+                  Soak
+                  <input name="combatSoak" type="number" min="0" max="9999" placeholder="Soak" readonly />
+                </label>
+
+                <div class="muted">Offensive</div>
                 <label>
                   Initiative
-                  <input name="combatInitiative" placeholder="Layout only" />
+                  <input name="combatInitiative" type="number" min="0" max="9999" placeholder="Initiative" readonly />
                 </label>
                 <label>
-                  Defense
-                  <input name="combatDefense" placeholder="Layout only" />
+                  Melee Attack
+                  <input name="combatMeleeAttack" type="number" min="0" max="9999" placeholder="Melee Attack" readonly />
                 </label>
                 <label>
-                  Armor
-                  <input name="combatArmor" placeholder="Layout only" />
+                  Melee Damage
+                  <input name="combatMeleeDamage" type="number" min="0" max="9999" placeholder="Melee Damage" readonly />
+                </label>
+                <label>
+                  Range Attack
+                  <input name="combatRangeAttack" type="number" min="0" max="9999" placeholder="Range Attack" readonly />
+                </label>
+                <label>
+                  Range Damage
+                  <input name="combatRangeDamage" type="number" min="0" max="9999" placeholder="Range Damage" readonly />
+                </label>
+                <label>
+                  Spell Damage
+                  <input name="combatSpellDamage" type="number" min="0" max="9999" placeholder="Spell Damage" readonly />
                 </label>
               </fieldset>
 
               <fieldset class="sheet-section">
                 <legend>3. Stats</legend>
+                <div class="muted">Physical</div>
                 <label>
-                  Might (0-10)
-                  <input name="might" type="number" min="0" max="10" placeholder="Might" />
+                  Strength (STR)
+                  <input name="strength" type="number" min="0" max="999" placeholder="Strength" readonly />
                 </label>
                 <label>
-                  Agility (0-10)
-                  <input name="agility" type="number" min="0" max="10" placeholder="Agility" />
+                  Dexterity (DEX)
+                  <input name="dexterity" type="number" min="0" max="999" placeholder="Dexterity" readonly />
                 </label>
                 <label>
-                  Mind (0-10)
-                  <input name="mind" type="number" min="0" max="10" placeholder="Mind" />
+                  Stamina (STAM)
+                  <input name="stamina" type="number" min="0" max="999" placeholder="Stamina" readonly />
+                </label>
+
+                <div class="muted">Social</div>
+                <label>
+                  Charisma (CHA)
+                  <input name="charisma" type="number" min="0" max="999" placeholder="Charisma" readonly />
                 </label>
                 <label>
-                  Spirit (0-10)
-                  <input name="spirit" type="number" min="0" max="10" placeholder="Spirit" />
+                  Manipulation (MAN)
+                  <input name="manipulation" type="number" min="0" max="999" placeholder="Manipulation" readonly />
                 </label>
                 <label>
-                  Health (0-20)
-                  <input name="health" type="number" min="0" max="20" placeholder="Health" />
+                  Appearance (APP)
+                  <input name="appearance" type="number" min="0" max="999" placeholder="Appearance" readonly />
+                </label>
+
+                <div class="muted">Mental</div>
+                <label>
+                  Intelligence (INT)
+                  <input name="intelligence" type="number" min="0" max="999" placeholder="Intelligence" readonly />
                 </label>
                 <label>
-                  Stress (0-20)
-                  <input name="stress" type="number" min="0" max="20" placeholder="Stress" />
+                  Perception (PER)
+                  <input name="perception" type="number" min="0" max="999" placeholder="Perception" readonly />
+                </label>
+                <label>
+                  Wits (WITS)
+                  <input name="wits" type="number" min="0" max="999" placeholder="Wits" readonly />
                 </label>
               </fieldset>
 
               <fieldset class="sheet-section">
                 <legend>4. Skills</legend>
                 <label>
-                  Skill Lines
-                  <textarea
-                    name="skills"
-                    rows="4"
-                    placeholder="Local layout draft field"
-                  ></textarea>
+                  Melee (MEL)
+                  <input name="melee" type="number" min="0" max="999" placeholder="Melee" readonly />
+                </label>
+                <label>
+                  Ranged (RNG)
+                  <input name="ranged" type="number" min="0" max="999" placeholder="Ranged" readonly />
+                </label>
+                <label>
+                  Athletics (ATH)
+                  <input name="athletics" type="number" min="0" max="999" placeholder="Athletics" readonly />
+                </label>
+                <label>
+                  Stealth (STL)
+                  <input name="stealth" type="number" min="0" max="999" placeholder="Stealth" readonly />
+                </label>
+                <label>
+                  Alertness (ALR)
+                  <input name="alertness" type="number" min="0" max="999" placeholder="Alertness" readonly />
+                </label>
+                <label>
+                  Intimidation (ITM)
+                  <input name="intimidation" type="number" min="0" max="999" placeholder="Intimidation" readonly />
+                </label>
+                <label>
+                  Social (SOC)
+                  <input name="social" type="number" min="0" max="999" placeholder="Social" readonly />
+                </label>
+                <label>
+                  Medicine (MED)
+                  <input name="medicine" type="number" min="0" max="999" placeholder="Medicine" readonly />
+                </label>
+                <label>
+                  Technology (TEC)
+                  <input name="technology" type="number" min="0" max="999" placeholder="Technology" readonly />
+                </label>
+                <label>
+                  Academics (ACA)
+                  <input name="academics" type="number" min="0" max="999" placeholder="Academics" readonly />
+                </label>
+                <label>
+                  Mechanics (MEC)
+                  <input name="mechanics" type="number" min="0" max="999" placeholder="Mechanics" readonly />
+                </label>
+                <label>
+                  Occultism (OCC)
+                  <input name="occultism" type="number" min="0" max="999" placeholder="Occultism" readonly />
                 </label>
               </fieldset>
 
               <fieldset class="sheet-section">
-                <legend>5. Powers / Spells</legend>
+                <legend>5. XP Buy Controls</legend>
+                <div id="player-xp-buy-state" class="muted">
+                  XP buys: load your character to view lock state.
+                </div>
+                <div class="muted">Stats</div>
+                <div class="row">
+                  <select id="player-xp-stat-select">
+                    <option value="">stat</option>
+                  </select>
+                  <input id="player-xp-stat-level" type="number" min="1" max="10" value="2" placeholder="to level" />
+                  <button id="player-xp-buy-stat" type="button" class="ghost">Buy Stat</button>
+                </div>
+                <div class="muted">Skills</div>
+                <div class="row">
+                  <select id="player-xp-skill-select">
+                    <option value="">skill</option>
+                  </select>
+                  <input id="player-xp-skill-level" type="number" min="1" max="10" value="1" placeholder="to level" />
+                  <button id="player-xp-buy-skill" type="button" class="ghost">Buy Skill</button>
+                </div>
+                <p class="muted">
+                  Powers and Merits/Flaws are bought from their dropdowns below (GM unlock required).
+                </p>
+              </fieldset>
+
+              <fieldset class="sheet-section">
+                <legend>6. Powers / Spells</legend>
+                <div id="player-power-catalog-state" class="muted">
+                  Powers list: load a campaign to fetch ruleset powers.
+                </div>
+                <div class="row">
+                  <select id="player-power-tier-select" disabled>
+                    <option value="">tier (locked)</option>
+                  </select>
+                  <select id="player-power-option-select" disabled>
+                    <option value="">power (locked)</option>
+                  </select>
+                  <input
+                    id="player-power-level-input"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value="1"
+                    placeholder="to level"
+                    disabled
+                  />
+                  <button id="player-power-edit-button" type="button" class="ghost" disabled>
+                    Buy Power (Locked)
+                  </button>
+                </div>
                 <label>
                   Known Powers
                   <textarea
                     name="powers"
                     rows="4"
                     placeholder="Local layout draft field"
+                    readonly
                   ></textarea>
                 </label>
               </fieldset>
 
               <fieldset class="sheet-section">
-                <legend>6. Equipment</legend>
+                <legend>7. Equipment</legend>
                 <label>
                   Equipped Gear
                   <textarea
@@ -184,19 +453,45 @@
               </fieldset>
 
               <fieldset class="sheet-section">
-                <legend>7. Merits / Flaws</legend>
+                <legend>8. Merits / Flaws</legend>
+                <div id="player-merits-flaws-catalog-state" class="muted">
+                  Merits/Flaws list: load a campaign to fetch ruleset options.
+                </div>
+                <div class="row">
+                  <select id="player-merits-flaws-type-select" disabled>
+                    <option value="">type (locked)</option>
+                    <option value="merits">merits</option>
+                    <option value="flaws">flaws</option>
+                  </select>
+                  <select id="player-merits-flaws-option-select" disabled>
+                    <option value="">option (locked)</option>
+                  </select>
+                  <input
+                    id="player-merits-flaws-level-input"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value="1"
+                    placeholder="to level"
+                    disabled
+                  />
+                  <button id="player-merits-flaws-edit-button" type="button" class="ghost" disabled>
+                    Buy Merit/Flaw (Locked)
+                  </button>
+                </div>
                 <label>
                   Traits
                   <textarea
                     name="meritsFlaws"
                     rows="4"
                     placeholder="Local layout draft field"
+                    readonly
                   ></textarea>
                 </label>
               </fieldset>
 
               <fieldset class="sheet-section">
-                <legend>8. Connections</legend>
+                <legend>9. Connections</legend>
                 <label>
                   People and Factions
                   <textarea
@@ -208,7 +503,7 @@
               </fieldset>
 
               <fieldset class="sheet-section">
-                <legend>9. Inventory</legend>
+                <legend>10. Inventory</legend>
                 <label>
                   Carried Items
                   <textarea
@@ -220,7 +515,7 @@
               </fieldset>
 
               <fieldset class="sheet-section sheet-section--wide">
-                <legend>10. Notes</legend>
+                <legend>11. Notes</legend>
                 <label>
                   Session Notes
                   <textarea name="notes" rows="5" placeholder="Saved in MVP"></textarea>
@@ -228,7 +523,7 @@
               </fieldset>
             </div>
             <p class="muted">
-              API save: Name, Stats, Notes. Other section fields can be saved locally as layout draft.
+              API save: all 10 sections. Local layout draft remains optional.
             </p>
             <div class="row">
               <button id="player-save-layout-draft" type="button" class="ghost">
@@ -245,7 +540,7 @@
           <pre id="player-character-output"></pre>
         </section>
 
-        <section class="card">
+        <section id="player-card-rolls" class="card">
           <h3>D10 Rolls</h3>
           <form id="player-roll-form">
             <input name="pool" type="number" min="1" max="20" placeholder="Pool" required />
@@ -298,7 +593,7 @@
           <pre id="player-events-output"></pre>
         </section>
 
-        <section class="card">
+        <section id="player-card-chat" class="card">
           <h3>Chat</h3>
           <form id="player-chat-form">
             <select name="visibility">
@@ -323,7 +618,7 @@
           <pre id="player-chat-output"></pre>
         </section>
 
-        <section class="card">
+        <section id="player-card-timeline" class="card">
           <h3>Session Timeline</h3>
           <div class="row">
             <select id="player-timeline-source-filter">
@@ -341,14 +636,24 @@
 
       <section class="page" data-page="master">
         <div class="topbar">
-          <h2>Master Dashboard</h2>
+          <h2 id="master-page-title">Master Dashboard</h2>
           <div class="row">
+            <button id="master-go-home" type="button" class="ghost">Home</button>
+            <button id="master-go-menu" type="button" class="ghost">Master Menu</button>
             <button id="master-back-welcome" type="button" class="ghost">Back</button>
             <button id="master-logout" type="button" class="ghost">Logout</button>
           </div>
         </div>
 
-        <section class="card">
+        <section id="master-selection-guard" class="card hidden">
+          <h3>Select a Game First</h3>
+          <p class="muted">Open Active Games or Passive / Old Games and choose a campaign.</p>
+          <button id="master-guard-go-active-games" type="button" class="ghost">
+            Go to Active Games
+          </button>
+        </section>
+
+        <section id="master-actions-card" class="card">
           <h3>Master Actions</h3>
           <div class="chip-grid master-actions">
             <button
@@ -369,7 +674,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section id="master-card-workspace" class="card">
           <h3>Master Workspace</h3>
           <p id="master-workspace-title" class="muted">
             Host a new game or pick another action.
@@ -432,19 +737,43 @@
           </div>
         </section>
 
-        <section class="card">
-          <h3>Campaign Control</h3>
+        <section id="master-card-character-locks" class="card">
+          <h3>Character Locks (GM)</h3>
+          <div class="row">
+            <button id="master-load-characters" type="button">Load Characters</button>
+            <select id="master-character-select">
+              <option value="">select character</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="master-unlock-powers" type="button" class="ghost">Unlock Powers</button>
+            <button id="master-lock-powers" type="button" class="ghost">Lock Powers</button>
+          </div>
+          <div class="row">
+            <button id="master-unlock-merits-flaws" type="button" class="ghost">Unlock Merits/Flaws</button>
+            <button id="master-lock-merits-flaws" type="button" class="ghost">Lock Merits/Flaws</button>
+          </div>
+          <div id="master-character-lock-state" class="muted">
+            Load characters to manage section locks.
+          </div>
+          <pre id="master-character-output"></pre>
+        </section>
+
+        <section id="master-card-campaign-control" class="card">
+          <h3>Create Campaign</h3>
           <form id="master-create-campaign-form">
             <input name="name" placeholder="Campaign name" required />
             <button type="submit">Host a New Game</button>
           </form>
-          <button id="master-load-campaigns" type="button">Load My Master Campaigns</button>
-          <div id="master-campaign-state" class="muted"></div>
-          <div id="master-auto-refresh-state" class="muted"></div>
-          <ul id="master-campaign-list"></ul>
+          <div id="master-host-existing-campaigns" class="hidden">
+            <button id="master-load-campaigns" type="button">Load My Master Campaigns</button>
+            <div id="master-campaign-state" class="muted"></div>
+            <div id="master-auto-refresh-state" class="muted"></div>
+            <ul id="master-campaign-list"></ul>
+          </div>
         </section>
 
-        <section class="card">
+        <section id="master-card-campaign-snapshot" class="card">
           <h3>Campaign Snapshot</h3>
           <button id="master-refresh-summary" type="button">Refresh</button>
           <pre id="master-summary-output"></pre>
@@ -454,7 +783,7 @@
           <ul id="master-invites-output"></ul>
         </section>
 
-        <section class="card">
+        <section id="master-card-invites" class="card">
           <h3>Invites</h3>
           <form id="master-invite-form">
             <input name="email" type="email" placeholder="Player email" required />
@@ -463,20 +792,19 @@
           <pre id="master-invite-output"></pre>
         </section>
 
-        <section class="card">
+        <section id="master-card-session-state" class="card">
           <h3>Session State</h3>
           <form id="master-session-form">
             <select name="state" required>
-              <option value="idle">idle</option>
-              <option value="active">active</option>
-              <option value="paused">paused</option>
-              <option value="ended">ended</option>
+              <option value="active-live">active-live</option>
+              <option value="active-offline">active-offline</option>
+              <option value="archived">archived</option>
             </select>
             <button type="submit">Set Session State</button>
           </form>
         </section>
 
-        <section class="card">
+        <section id="master-card-events" class="card">
           <h3>Events</h3>
           <div class="row quick-filter-row" data-event-quick-prefix="master">
             <button type="button" class="ghost" data-event-type="">
@@ -515,7 +843,7 @@
           <pre id="master-events-output"></pre>
         </section>
 
-        <section class="card">
+        <section id="master-card-chat" class="card">
           <h3>Chat</h3>
           <form id="master-chat-form">
             <select name="visibility">
@@ -540,7 +868,7 @@
           <pre id="master-chat-output"></pre>
         </section>
 
-        <section class="card">
+        <section id="master-card-timeline" class="card">
           <h3>Session Timeline</h3>
           <div class="row">
             <select id="master-timeline-source-filter">
@@ -559,6 +887,6 @@
       <pre id="status"></pre>
     </main>
 
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>

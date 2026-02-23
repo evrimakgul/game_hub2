@@ -2,123 +2,30 @@
 
 Use this file to adapt explanations over time.
 
-## Preferences
-- Prefer short, simple answers first.
-- Teach terms and concepts gradually.
+## Communication Preferences
+- Start with a direct answer.
+- Keep wording short and simple.
+- Introduce one concept at a time.
+- Define technical terms in plain language.
 
-## Clarification Log
+## Workflow Preferences
+- Prioritize core architecture over polishing.
+- Execute directly; do not ask for commit/push confirmation.
+- Keep one master TODO and keep priorities explicit.
 
-### Template
+## Terms to Keep Simple
+- Repository, remote, tag, rollback, workspace.
+- Schema-driven, migration, bridge pattern.
+
+## Clarification Log (Condensed)
+- 2026-02-21: Needed clear "what next" actions after milestones.
+- 2026-02-21: Wanted full-scope direction locked before implementation.
+- 2026-02-21: Needed milestone log to include plain-language rollback context.
+- 2026-02-22: Needed simpler explanation of bridge options and fixed-to-schema transition.
+
+## Template for New Entries
 - Date:
 - Topic:
 - What was unclear:
-- Simpler wording to use next time:
-- Terms to re-teach:
-- Preferred pace/format:
-- Date: 2026-02-21
-- Topic: VS Code Start menu (bottom three actions)
-- What was unclear: When/where to use Clone Git Repository, Connect to, and Generate New Workspace; and what each helps with.
-- Simpler wording to use next time: "Copy existing online project", "open remote dev environment", "save a multi-folder setup".
-- Terms to re-teach: repository, clone, remote, workspace.
-- Preferred pace/format: short bullet list with when-to-use examples.
-- Date: 2026-02-21
-- Topic: Starting a brand-new project in VS Code
-- What was unclear: Whether bottom three start-screen options are needed if project is from scratch and already set up.
-- Simpler wording to use next time: "If starting local from zero, use Open Folder." 
-- Terms to re-teach: setup, local project, clone.
-- Preferred pace/format: direct yes/no first, then one-line options.
-- Date: 2026-02-21
-- Topic: VS Code "Generate New Workspace"
-- What was unclear: Meaning of "multi-folder setup" and practical use.
-- Simpler wording to use next time: "One saved window that opens multiple project folders together."
-- Terms to re-teach: workspace, multi-folder.
-- Preferred pace/format: tiny example + when to use.
-- Date: 2026-02-21
-- Topic: When to set up a VS Code workspace
-- What was unclear: Whether multi-folder workspace should be created immediately before starting work.
-- Simpler wording to use next time: "Not required now; create it when the second folder appears."
-- Terms to re-teach: workspace timing, add folder to workspace.
-- Preferred pace/format: direct decision first, then 2-3 steps.
-- Date: 2026-02-21
-- Topic: Workflow preference
-- What was unclear: Need for a dedicated to-do list and reminder mechanism during project setup.
-- Simpler wording to use next time: "Yes, we should keep a single TODO file and update it as we go."
-- Terms to re-teach: top-level folder, workspace.
-- Preferred pace/format: short decision + immediate setup.
-- Date: 2026-02-21
-- Topic: GitHub project workflow expectations
-- What was unclear: Exact split of responsibilities (user vs assistant) for GitHub setup, daily commits, and milestone rollback strategy.
-- Simpler wording to use next time: "I do local setup now; you do one-time GitHub repo creation/auth; then we follow daily commit + milestone tag routine."
-- Terms to re-teach: remote, origin, tag, rollback.
-- Preferred pace/format: checklist with execute-now actions.
-- Date: 2026-02-21
-- Topic: GitHub new repository form choices
-- What was unclear: Which options to select (visibility, README, gitignore, license) before creating repo.
-- Simpler wording to use next time: "Create empty repo; keep README/gitignore/license off when local repo already exists."
-- Terms to re-teach: empty repo, first push, conflict.
-- Preferred pace/format: exact option values + next single action.
-- Date: 2026-02-21
-- Topic: After GitHub repo creation
-- What was unclear: Immediate next step after creating remote repo page.
-- Simpler wording to use next time: "Send URL; I will connect remote and push for you."
-- Terms to re-teach: origin, upstream tracking.
-- Preferred pace/format: one action now + I execute the rest.
-- Date: 2026-02-21
-- Topic: Milestone readability
-- What was unclear: Milestone names alone are not enough to decide rollback target.
-- Simpler wording to use next time: "Each milestone needs a short plain-language summary of what changed."
-- Terms to re-teach: milestone tag, rollback target.
-- Preferred pace/format: concise milestone log with one-line purpose.
-- Date: 2026-02-21
-- Topic: Scope vs future flexibility
-- What was unclear: Whether full end-product scope must be planned now to avoid architecture dead-ends.
-- Simpler wording to use next time: "Plan full direction now, build MVP now, keep architecture extension-ready."
-- Terms to re-teach: full scope, architecture constraints, extensibility.
-- Preferred pace/format: direct risk answer + concrete safeguard steps.
-- Date: 2026-02-21
-- Topic: Full-scope discovery process
-- What was unclear: Expected active questioning about end-product scope before implementation.
-- Simpler wording to use next time: "Before coding, I will ask full-scope questions and lock decisions."
-- Terms to re-teach: scope discovery, decision lock.
-- Preferred pace/format: short numbered questions with direct answer slots.
-- Date: 2026-02-21
-- Topic: End-product designer toolkit requirement
-- What was unclear: Need to explicitly include unified design tooling for both character sheet layout and rules/mechanics authoring.
-- Simpler wording to use next time: "One future designer studio for visual sheet design + mechanical rules design."
-- Terms to re-teach: schema-driven, computed field, mechanical designer.
-- Preferred pace/format: lock requirement in scope docs before implementation.
-- Date: 2026-02-21
-- Topic: Live updates reliability
-- What was unclear: Auto-refresh appeared to work first, then stopped for dice/chat without manual load.
-- Simpler wording to use next time: "Polling should stay active after campaign selection and never depend on status element presence."
-- Terms to re-teach: polling timer, null-safe UI hooks.
-- Preferred pace/format: immediate bug fix + quick retest steps.
-- Date: 2026-02-21
-- Topic: Pre-implementation direction alignment
-- What was unclear: Need to lock page-flow, character-sheet structure, and mechanics direction before continuing feature expansion.
-- Simpler wording to use next time: "Lock direction docs first, then implement."
-- Terms to re-teach: role-based flow, branch pages, direction lock.
-- Preferred pace/format: clear tree + section list + baseline mechanic rules.
-- Date: 2026-02-21
-- Topic: Role-based UX flow expectations
-- What was unclear: Need explicit page tree and separate Player/Master views before further feature expansion.
-- Simpler wording to use next time: "Implement Connection -> Sign-Up -> Welcome -> Player/Master pages first."
-- Terms to re-teach: role-based routing, dashboard shell, branch flow.
-- Preferred pace/format: lock direction, then implement UI flow immediately.
-- Date: 2026-02-21
-- Topic: Immediate next action after implementation milestones
-- What was unclear: What exact task to do now and what "run 2 real sessions" means in practice.
-- Which terms need simpler definitions: MVP validation, session checklist, PASS/FAIL item.
-- What teaching pace worked best: one direct action first, then 3 short steps.
-- Date: 2026-02-21
-- Topic: Delivery workflow preference
-- What was unclear: Assistant asked for permission to commit/push after implementation.
-- Simpler wording to use next time: "I will commit and push automatically after completing development tasks."
-- Terms to re-teach: none.
-- Preferred pace/format: execute directly; no commit/push confirmation question.
-- Date: 2026-02-21
-- Topic: Implementation priority policy
-- What was unclear: Prioritization between core architecture work vs UI polishing.
-- Simpler wording to use next time: "Always prioritize core architecture and pivotal functions first; defer polishing tasks."
-- Terms to re-teach: core architecture, pivotal function, deferred polishing.
-- Preferred pace/format: core-first execution, ask direct clarifying questions when architecture scope is ambiguous.
+- Which terms need simpler definitions:
+- What teaching pace worked best:

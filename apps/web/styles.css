@@ -91,6 +91,18 @@ form,
   gap: 8px;
 }
 
+.welcome-master-actions {
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.welcome-master-actions .muted {
+  margin: 0 0 8px;
+}
+
 input,
 select,
 textarea,
