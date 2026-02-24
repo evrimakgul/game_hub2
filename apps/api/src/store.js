@@ -31,6 +31,7 @@ function createDefaultData() {
     characterSheets: [],
     xpSessionAwards: [],
     xpBuyEntries: [],
+    xpBuyRequests: [],
     xpBuyCorrections: [],
     sessionEvents: [],
     chatMessages: []
@@ -92,6 +93,7 @@ export class JsonStore {
       "characterSheets",
       "xpSessionAwards",
       "xpBuyEntries",
+      "xpBuyRequests",
       "xpBuyCorrections",
       "sessionEvents",
       "chatMessages"
@@ -106,6 +108,15 @@ export class JsonStore {
         continue;
       }
       campaign.sessionState = normalizeCampaignSessionState(campaign.sessionState);
+    }
+
+    for (const character of this.data.characterSheets) {
+      if (!character || typeof character !== "object") {
+        continue;
+      }
+      if (!character.numericBonuses || typeof character.numericBonuses !== "object") {
+        character.numericBonuses = {};
+      }
     }
 
     for (const event of this.data.sessionEvents) {

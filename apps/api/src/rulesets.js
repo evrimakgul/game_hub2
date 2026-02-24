@@ -1571,6 +1571,125 @@ function applyDerivedBioFields(
   return next;
 }
 
+function integerOrZero(value) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? numeric : 0;
+}
+
+function normalizeNumericBonuses(raw) {
+  const source = isPlainObject(raw) ? raw : {};
+  const fields = isPlainObject(source.fields) ? source.fields : {};
+  const powers = isPlainObject(source.powers) ? source.powers : {};
+  const normalized = {
+    fields: {},
+    powers: {}
+  };
+
+  for (const [key, value] of Object.entries(fields)) {
+    normalized.fields[key] = integerOrZero(value);
+  }
+
+  for (const [tierId, entries] of Object.entries(powers)) {
+    if (!isPlainObject(entries)) {
+      continue;
+    }
+    normalized.powers[tierId] = {};
+    for (const [powerId, value] of Object.entries(entries)) {
+      normalized.powers[tierId][powerId] = integerOrZero(value);
+    }
+  }
+
+  return normalized;
+}
+
+function buildNumericTriples(sections, { progression = {}, numericBonuses = {} } = {}) {
+  const bonuses = normalizeNumericBonuses(numericBonuses);
+  const triples = {
+    combat: {},
+    stats: {},
+    skills: {},
+    powers: {}
+  };
+
+  const combat = isPlainObject(sections?.combat) ? sections.combat : {};
+  for (const fieldId of D10_COMBAT_FIELD_IDS) {
+    const base = integerOrZero(combat[fieldId]);
+    const bonus = integerOrZero(bonuses.fields[fieldId]);
+    triples.combat[fieldId] = { base, bonus, current: base + bonus };
+  }
+
+  const stats = isPlainObject(sections?.stats) ? sections.stats : {};
+  for (const [groupId, fieldIds] of D10_STATS_GROUP_FIELD_IDS.entries()) {
+    const group = isPlainObject(stats[groupId]) ? stats[groupId] : {};
+    triples.stats[groupId] = {};
+    for (const fieldId of fieldIds) {
+      const base = integerOrZero(group[fieldId]);
+      const bonus = integerOrZero(bonuses.fields[fieldId]);
+      triples.stats[groupId][fieldId] = { base, bonus, current: base + bonus };
+    }
+  }
+
+  const skills = isPlainObject(sections?.skills) ? sections.skills : {};
+  for (const fieldId of D10_SKILL_FIELD_IDS) {
+    const base = integerOrZero(skills[fieldId]);
+    const bonus = integerOrZero(bonuses.fields[fieldId]);
+    triples.skills[fieldId] = { base, bonus, current: base + bonus };
+  }
+
+  const powerProgression = isPlainObject(progression?.powers) ? progression.powers : {};
+  for (const [tierId, tierRows] of Object.entries(powerProgression)) {
+    if (!isPlainObject(tierRows)) {
+      continue;
+    }
+    triples.powers[tierId] = {};
+    for (const [powerId, value] of Object.entries(tierRows)) {
+      const base = integerOrZero(value);
+      const bonus = integerOrZero(bonuses.powers?.[tierId]?.[powerId]);
+      triples.powers[tierId][powerId] = { base, bonus, current: base + bonus };
+    }
+  }
+
+  return {
+    numericBonuses: bonuses,
+    numericTriples: triples
+  };
+}
+
+function applyNumericTriplesToSections(sections, triples) {
+  if (!isPlainObject(sections)) {
+    return sections;
+  }
+  const next = structuredClone(sections);
+
+  for (const [fieldId, values] of Object.entries(triples?.combat || {})) {
+    if (!isPlainObject(next.combat)) {
+      next.combat = {};
+    }
+    next.combat[fieldId] = integerOrZero(values?.current);
+  }
+
+  for (const [groupId, groupRows] of Object.entries(triples?.stats || {})) {
+    if (!isPlainObject(next.stats)) {
+      next.stats = {};
+    }
+    if (!isPlainObject(next.stats[groupId])) {
+      next.stats[groupId] = {};
+    }
+    for (const [fieldId, values] of Object.entries(groupRows || {})) {
+      next.stats[groupId][fieldId] = integerOrZero(values?.current);
+    }
+  }
+
+  for (const [fieldId, values] of Object.entries(triples?.skills || {})) {
+    if (!isPlainObject(next.skills)) {
+      next.skills = {};
+    }
+    next.skills[fieldId] = integerOrZero(values?.current);
+  }
+
+  return next;
+}
+
 function buildD10Sections({
   sheetSections = {},
   legacySource = {},
@@ -1878,13 +1997,16 @@ class D10RulesetAdapter {
       characterContext,
       xpBuyEntries
     });
-    return createD10SheetData(
-      applyDerivedBioFields(derivedProgression.sections, {
-        characterContext,
-        xpSessionAwards,
-        xpBuyEntries
-      })
-    );
+    const derivedSections = applyDerivedBioFields(derivedProgression.sections, {
+      characterContext,
+      xpSessionAwards,
+      xpBuyEntries
+    });
+    const { numericTriples } = buildNumericTriples(derivedSections, {
+      progression: derivedProgression.progression,
+      numericBonuses: {}
+    });
+    return createD10SheetData(applyNumericTriplesToSections(derivedSections, numericTriples));
   }
 
   normalizeCharacterSheet(
@@ -1948,12 +2070,19 @@ class D10RulesetAdapter {
         userId: character.userId
       }
     );
+    const { numericBonuses, numericTriples } = buildNumericTriples(derivedSections, {
+      progression: derivedProgression.progression,
+      numericBonuses: character.numericBonuses
+    });
+    const displaySections = applyNumericTriplesToSections(derivedSections, numericTriples);
 
     return {
       ...character,
-      ...createD10SheetData(derivedSections)
+      ...createD10SheetData(displaySections)
       ,
       sectionLocks,
+      numericBonuses,
+      numericTriples,
       progression: structuredClone(derivedProgression.progression),
       xpBuyStatus: {
         lockedBySessionState,
@@ -1998,10 +2127,17 @@ class D10RulesetAdapter {
         userId: character.userId
       }
     });
+    const { numericBonuses, numericTriples } = buildNumericTriples(derivedSections, {
+      progression: derivedProgression.progression,
+      numericBonuses: normalized.numericBonuses || character.numericBonuses
+    });
+    const displaySections = applyNumericTriplesToSections(derivedSections, numericTriples);
 
     return {
       ...normalized,
-      ...createD10SheetData(derivedSections)
+      ...createD10SheetData(displaySections),
+      numericBonuses,
+      numericTriples
     };
   }
 

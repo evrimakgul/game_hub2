@@ -498,7 +498,7 @@ describe("MVP API scenarios", () => {
     expect(statBuy.body.receipt.xpDeltaUsed).toBe(9);
     expect(statBuy.body.character.stats.physical.strength).toBe(3);
 
-    const lockedPowerBuy = await request(app)
+    const powerBuyWithoutSectionToggle = await request(app)
       .post(`/api/v1/campaigns/${campaignId}/characters/me/xp/buys`)
       .set(authHeader(gm.token))
       .send({
@@ -507,8 +507,8 @@ describe("MVP API scenarios", () => {
         powerId: "awareness",
         toLevel: 1
       });
-    expect(lockedPowerBuy.status).toBe(400);
-    expect(lockedPowerBuy.body.error).toContain("Powers / Spells is locked");
+    expect(powerBuyWithoutSectionToggle.status).toBe(201);
+    expect(powerBuyWithoutSectionToggle.body.character.progression.powers.t1.awareness).toBe(1);
 
     const unlockPowers = await request(app)
       .post(`/api/v1/campaigns/${campaignId}/characters/${characterId}/section-locks`)
@@ -527,11 +527,10 @@ describe("MVP API scenarios", () => {
         kind: "POWER",
         tierId: "t1",
         powerId: "awareness",
-        toLevel: 1
+        toLevel: 2
       });
     expect(powerBuy.status).toBe(201);
-    expect(powerBuy.body.receipt.xpDeltaUsed).toBe(10);
-    expect(powerBuy.body.character.progression.powers.t1.awareness).toBe(1);
+    expect(powerBuy.body.character.progression.powers.t1.awareness).toBe(2);
 
     const unlockMeritsFlaws = await request(app)
       .post(`/api/v1/campaigns/${campaignId}/characters/${characterId}/section-locks`)

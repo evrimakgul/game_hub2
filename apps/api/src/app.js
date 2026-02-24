@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { createAuthService, sanitizeUser } from "./auth.js";
+import { registerCharacterMechanicsRoutes } from "./http/routes/registerCharacterMechanicsRoutes.js";
 import { findMembership, isGm, canViewCharacter } from "./permissions.js";
 import { getRulesetAdapter } from "./rulesets.js";
+import { RealtimeHub } from "./services/events/RealtimeHub.js";
 import { JsonStore } from "./store.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -568,11 +570,21 @@ export function createApp(options = {}) {
     options.tempAuthBypassEnabled ?? process.env.NODE_ENV !== "production";
   const store = options.store || new JsonStore(storeFile);
   const auth = createAuthService({ store, jwtSecret });
-  const realtimeHub = createRealtimeHub();
+  const realtimeHub = new RealtimeHub({
+    sanitizeChatMessage,
+    canReadChatMessage
+  });
   const app = express();
 
   app.use(cors());
   app.use(express.json());
+
+  registerCharacterMechanicsRoutes({
+    app,
+    auth,
+    store,
+    realtimeHub
+  });
 
   app.get("/api/v1/health", (_req, res) => {
     res.json({ ok: true });
@@ -975,6 +987,7 @@ export function createApp(options = {}) {
     })
   );
 
+  if (false) {
   app.get(
     "/api/v1/campaigns/:campaignId/characters/schema",
     auth.requireAuth,
@@ -2042,6 +2055,7 @@ export function createApp(options = {}) {
       res.status(201).json({ result: outcome.roll });
     })
   );
+  }
 
   app.get(
     "/api/v1/campaigns/:campaignId/events",
@@ -2259,6 +2273,21 @@ export function createApp(options = {}) {
         const target = data.campaigns.find((entry) => entry.id === campaignId);
         if (!target) {
           throw httpError(404, "Campaign not found.");
+        }
+
+        if (state === "active-live") {
+          const hasPendingXpBuyRequests = (data.xpBuyRequests || []).some(
+            (entry) =>
+              entry &&
+              entry.campaignId === campaignId &&
+              String(entry.status || "").toUpperCase() === "PENDING"
+          );
+          if (hasPendingXpBuyRequests) {
+            throw httpError(
+              400,
+              "Cannot change session state to active-live while XP buy requests are pending."
+            );
+          }
         }
 
         target.sessionState = state;

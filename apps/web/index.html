@@ -178,10 +178,7 @@
                 </label>
                 <label>
                   Session XP (GM)
-                  <div class="row">
-                    <input name="bioSessionXp" type="number" min="0" max="9999" placeholder="Session XP" />
-                    <button id="player-apply-session-xp" type="button" class="ghost">Apply</button>
-                  </div>
+                  <input name="bioSessionXp" type="number" min="0" max="9999" placeholder="Session XP" />
                 </label>
                 <label>
                   XP Left Over
@@ -379,28 +376,24 @@
               </fieldset>
 
               <fieldset class="sheet-section">
-                <legend>5. XP Buy Controls</legend>
+                <legend>5. XP Change Draft</legend>
                 <div id="player-xp-buy-state" class="muted">
-                  XP buys: load your character to view lock state.
+                  XP buys: load your character to view status.
                 </div>
-                <div class="muted">Stats</div>
+                <div id="player-xp-draft-state" class="muted">
+                  Use +/- buttons next to Base fields to stage XP changes.
+                </div>
                 <div class="row">
-                  <select id="player-xp-stat-select">
-                    <option value="">stat</option>
-                  </select>
-                  <input id="player-xp-stat-level" type="number" min="1" max="10" value="2" placeholder="to level" />
-                  <button id="player-xp-buy-stat" type="button" class="ghost">Buy Stat</button>
+                  <button id="player-submit-xp-buy-request" type="button" class="ghost">
+                    Send XP Change Request to GM
+                  </button>
+                  <button id="player-clear-xp-draft" type="button" class="ghost">
+                    Revert Staged Changes
+                  </button>
                 </div>
-                <div class="muted">Skills</div>
-                <div class="row">
-                  <select id="player-xp-skill-select">
-                    <option value="">skill</option>
-                  </select>
-                  <input id="player-xp-skill-level" type="number" min="1" max="10" value="1" placeholder="to level" />
-                  <button id="player-xp-buy-skill" type="button" class="ghost">Buy Skill</button>
-                </div>
+                <pre id="player-xp-draft-output">No staged XP changes.</pre>
                 <p class="muted">
-                  Powers and Merits/Flaws are bought from their dropdowns below (GM unlock required).
+                  Stats and skills use inline +/- on Base. Powers and merits/flaws still use the selectors below, but they now submit requests for GM approval.
                 </p>
               </fieldset>
 
@@ -411,10 +404,10 @@
                 </div>
                 <div class="row">
                   <select id="player-power-tier-select" disabled>
-                    <option value="">tier (locked)</option>
+                    <option value="">tier</option>
                   </select>
                   <select id="player-power-option-select" disabled>
-                    <option value="">power (locked)</option>
+                    <option value="">power</option>
                   </select>
                   <input
                     id="player-power-level-input"
@@ -426,7 +419,7 @@
                     disabled
                   />
                   <button id="player-power-edit-button" type="button" class="ghost" disabled>
-                    Buy Power (Locked)
+                    Request Power Buy
                   </button>
                 </div>
                 <label>
@@ -459,12 +452,12 @@
                 </div>
                 <div class="row">
                   <select id="player-merits-flaws-type-select" disabled>
-                    <option value="">type (locked)</option>
+                    <option value="">type</option>
                     <option value="merits">merits</option>
                     <option value="flaws">flaws</option>
                   </select>
                   <select id="player-merits-flaws-option-select" disabled>
-                    <option value="">option (locked)</option>
+                    <option value="">option</option>
                   </select>
                   <input
                     id="player-merits-flaws-level-input"
@@ -475,9 +468,9 @@
                     placeholder="to level"
                     disabled
                   />
-                  <button id="player-merits-flaws-edit-button" type="button" class="ghost" disabled>
-                    Buy Merit/Flaw (Locked)
-                  </button>
+                    <button id="player-merits-flaws-edit-button" type="button" class="ghost" disabled>
+                      Request Merit/Flaw Buy
+                    </button>
                 </div>
                 <label>
                   Traits
@@ -587,7 +580,7 @@
               <option value="PLAYER_INVITED">PLAYER_INVITED</option>
               <option value="PLAYER_JOINED">PLAYER_JOINED</option>
             </select>
-            <input id="player-event-limit" type="number" min="1" max="200" value="50" />
+            <input id="player-event-limit" type="number" min="1" max="200" value="9" />
             <button id="player-load-events" type="button">Load Events</button>
           </div>
           <pre id="player-events-output"></pre>
@@ -612,7 +605,7 @@
               <option value="PUBLIC">public</option>
               <option value="PRIVATE">private</option>
             </select>
-            <input id="player-chat-limit" type="number" min="1" max="200" value="50" />
+            <input id="player-chat-limit" type="number" min="1" max="200" value="9" />
             <button id="player-load-chat" type="button">Load Chat</button>
           </div>
           <pre id="player-chat-output"></pre>
@@ -627,7 +620,7 @@
               <option value="CHAT">chat only</option>
             </select>
             <input id="player-timeline-search" placeholder="search timeline text" />
-            <input id="player-timeline-limit" type="number" min="1" max="200" value="80" />
+            <input id="player-timeline-limit" type="number" min="1" max="200" value="9" />
             <button id="player-load-timeline" type="button">Load Timeline</button>
           </div>
           <pre id="player-timeline-output"></pre>
@@ -738,24 +731,35 @@
         </section>
 
         <section id="master-card-character-locks" class="card">
-          <h3>Character Locks (GM)</h3>
+          <h3>Character Actions (GM)</h3>
           <div class="row">
             <button id="master-load-characters" type="button">Load Characters</button>
             <select id="master-character-select">
               <option value="">select character</option>
             </select>
+            <button id="master-delete-selected-character" type="button" class="ghost">
+              Delete Selected Character
+            </button>
           </div>
           <div class="row">
-            <button id="master-unlock-powers" type="button" class="ghost">Unlock Powers</button>
-            <button id="master-lock-powers" type="button" class="ghost">Lock Powers</button>
-          </div>
-          <div class="row">
-            <button id="master-unlock-merits-flaws" type="button" class="ghost">Unlock Merits/Flaws</button>
-            <button id="master-lock-merits-flaws" type="button" class="ghost">Lock Merits/Flaws</button>
+            <input
+              id="master-session-xp-amount"
+              type="number"
+              min="1"
+              max="9999"
+              placeholder="Session XP"
+            />
+            <button id="master-apply-session-xp-selected" type="button" class="ghost">
+              Apply Session XP (Selected Character)
+            </button>
+            <button id="master-load-xp-buy-requests" type="button" class="ghost">
+              Load XP Requests
+            </button>
           </div>
           <div id="master-character-lock-state" class="muted">
-            Load characters to manage section locks.
+            Load characters to manage approvals.
           </div>
+          <ul id="master-xp-buy-request-list"></ul>
           <pre id="master-character-output"></pre>
         </section>
 
@@ -837,7 +841,7 @@
               <option value="PLAYER_INVITED">PLAYER_INVITED</option>
               <option value="PLAYER_JOINED">PLAYER_JOINED</option>
             </select>
-            <input id="master-event-limit" type="number" min="1" max="200" value="50" />
+            <input id="master-event-limit" type="number" min="1" max="200" value="9" />
             <button id="master-load-events" type="button">Load Events</button>
           </div>
           <pre id="master-events-output"></pre>
@@ -862,7 +866,7 @@
               <option value="PUBLIC">public</option>
               <option value="PRIVATE">private</option>
             </select>
-            <input id="master-chat-limit" type="number" min="1" max="200" value="50" />
+            <input id="master-chat-limit" type="number" min="1" max="200" value="9" />
             <button id="master-load-chat" type="button">Load Chat</button>
           </div>
           <pre id="master-chat-output"></pre>
@@ -877,7 +881,7 @@
               <option value="CHAT">chat only</option>
             </select>
             <input id="master-timeline-search" placeholder="search timeline text" />
-            <input id="master-timeline-limit" type="number" min="1" max="200" value="80" />
+            <input id="master-timeline-limit" type="number" min="1" max="200" value="9" />
             <button id="master-load-timeline" type="button">Load Timeline</button>
           </div>
           <pre id="master-timeline-output"></pre>

@@ -168,29 +168,6 @@ const PLAYER_XP_BUYABLE_FIELD_MAX_BY_KIND = Object.freeze({
   STAT: 10,
   SKILL: 10
 });
-const PLAYER_D10_XP_COST_BY_STAT_LEVEL = Object.freeze({
-  2: 3,
-  3: 6,
-  4: 9,
-  5: 12,
-  6: 15,
-  7: 18,
-  8: 21,
-  9: 24,
-  10: 27
-});
-const PLAYER_D10_XP_COST_BY_SKILL_LEVEL = Object.freeze({
-  1: 3,
-  2: 2,
-  3: 4,
-  4: 6,
-  5: 8,
-  6: 10,
-  7: 12,
-  8: 14,
-  9: 16,
-  10: 18
-});
 const PLAYER_COMBAT_FIELD_SET = new Set(PLAYER_COMBAT_FIELDS);
 const PLAYER_SKILL_FIELD_SET = new Set(PLAYER_SKILL_FIELDS.map((entry) => entry.id));
 const PLAYER_STAT_GROUP_BY_FIELD_ID = new Map(
@@ -375,27 +352,12 @@ function playerXpBuyStatus() {
   return playerCurrentCharacter()?.xpBuyStatus || null;
 }
 
-function playerCampaignSessionStateForXp() {
-  const playerSelectionState = getRoleSelection("player")?.sessionState;
-  if (playerSelectionState) {
-    return normalizeCampaignSessionState(playerSelectionState);
-  }
-  if (String(state.selectedCampaignRole || "").toUpperCase() === "PLAYER") {
-    return normalizeCampaignSessionState(state.selectedCampaignState);
-  }
-  const xpStatus = playerXpBuyStatus();
-  if (xpStatus && typeof xpStatus.lockedBySessionState === "boolean") {
-    return xpStatus.lockedBySessionState ? "active-live" : "active-offline";
-  }
-  return normalizeCampaignSessionState(state.selectedCampaignState);
-}
-
 function playerXpBuyBlockedReason() {
   const character = playerCurrentCharacter();
   if (!character) {
     return "Load your character first.";
   }
-  if (playerCampaignSessionStateForXp() !== "active-offline") {
+  if (normalizeCampaignSessionState(state.selectedCampaignState) !== "active-offline") {
     return "XP buys are only available while the game session state is active-offline.";
   }
   if (character.xpBuyStatus?.frozenByPendingCorrection) {
@@ -494,123 +456,6 @@ function getPlayerDraftActionKey(kind, fieldId) {
   return `${String(kind || "").toUpperCase()}:${String(fieldId || "").trim()}`;
 }
 
-function xpCostMapForPlayerDraftKind(kind) {
-  const upper = String(kind || "").toUpperCase();
-  if (upper === "STAT") {
-    return PLAYER_D10_XP_COST_BY_STAT_LEVEL;
-  }
-  if (upper === "SKILL") {
-    return PLAYER_D10_XP_COST_BY_SKILL_LEVEL;
-  }
-  return null;
-}
-
-function incrementalXpCostForPlayerDraft(kind, fromLevel, toLevel) {
-  const costMap = xpCostMapForPlayerDraftKind(kind);
-  if (!costMap) {
-    return 0;
-  }
-  let total = 0;
-  for (let level = Number(fromLevel || 0) + 1; level <= Number(toLevel || 0); level += 1) {
-    total += Number(costMap[level] || 0);
-  }
-  return total;
-}
-
-function playerAvailableXpLeftOver() {
-  const character = playerCurrentCharacter();
-  if (!character) {
-    return 0;
-  }
-  const fromSheet = Number(character.sheet?.sections?.bio?.bioXpLeftOver);
-  if (Number.isFinite(fromSheet)) {
-    return fromSheet;
-  }
-  const fallback = Number(getCharacterFieldValue(character, "bioXpLeftOver"));
-  return Number.isFinite(fallback) ? fallback : 0;
-}
-
-function playerDraftXpUsedTotal(draftByKey = state.playerXpDraftByKey || {}) {
-  let total = 0;
-  for (const entry of Object.values(draftByKey || {})) {
-    if (!entry) continue;
-    total += incrementalXpCostForPlayerDraft(entry.kind, entry.originalBase, entry.toLevel);
-  }
-  return total;
-}
-
-function validatePlayerDraftXpBudget(draftByKey = state.playerXpDraftByKey || {}) {
-  const xpAvailable = playerAvailableXpLeftOver();
-  const xpRequired = playerDraftXpUsedTotal(draftByKey);
-  return {
-    ok: xpRequired <= xpAvailable,
-    xpAvailable,
-    xpRequired
-  };
-}
-
-function simulatePlayerDraftMapAfterBaseChange(fieldId, delta) {
-  const kind = PLAYER_XP_BUYABLE_FIELD_KIND_BY_ID[fieldId];
-  if (!kind) {
-    return { nextDraftByKey: state.playerXpDraftByKey || {}, noChange: true };
-  }
-  const character = playerCurrentCharacter();
-  if (!character) {
-    throw new Error("Load your character first.");
-  }
-  const triple = getCharacterNumericTriple(character, fieldId);
-  const originalBase = Number(triple.base || 0);
-  const key = getPlayerDraftActionKey(kind, fieldId);
-  const existing = (state.playerXpDraftByKey || {})[key] || null;
-  const currentBase = Number(existing?.toLevel ?? originalBase);
-  const maxLevel = PLAYER_XP_BUYABLE_FIELD_MAX_BY_KIND[kind] || 999;
-  const nextBase = currentBase + Number(delta || 0);
-  if (delta > 0 && nextBase > maxLevel) {
-    throw new Error(`${fieldId} base cannot exceed ${maxLevel}.`);
-  }
-  if (delta < 0 && nextBase < originalBase) {
-    throw new Error("Cannot decrease below the last saved base value.");
-  }
-  const nextDraftByKey = { ...(state.playerXpDraftByKey || {}) };
-  if (nextBase === originalBase) {
-    delete nextDraftByKey[key];
-  } else {
-    nextDraftByKey[key] = {
-      key,
-      kind,
-      fieldId,
-      originalBase,
-      toLevel: nextBase,
-      seq: existing?.seq || (Number(state.playerXpDraftSeq || 0) + 1)
-    };
-  }
-  return {
-    nextDraftByKey,
-    noChange: nextBase === currentBase,
-    kind,
-    key,
-    existing,
-    originalBase,
-    nextBase
-  };
-}
-
-function canStagePlayerBaseFieldChange(fieldId, delta) {
-  try {
-    const { nextDraftByKey } = simulatePlayerDraftMapAfterBaseChange(fieldId, delta);
-    const budget = validatePlayerDraftXpBudget(nextDraftByKey);
-    if (!budget.ok) {
-      return {
-        ok: false,
-        reason: `Not enough XP Left Over (${budget.xpRequired}/${budget.xpAvailable}).`
-      };
-    }
-    return { ok: true, reason: "" };
-  } catch (error) {
-    return { ok: false, reason: error?.message || "Cannot stage XP change." };
-  }
-}
-
 function stagePlayerBaseFieldChange(fieldId, delta) {
   const kind = PLAYER_XP_BUYABLE_FIELD_KIND_BY_ID[fieldId];
   if (!kind) {
@@ -624,17 +469,18 @@ function stagePlayerBaseFieldChange(fieldId, delta) {
   if (!character) {
     throw new Error("Load your character first.");
   }
-  const {
-    nextDraftByKey,
-    kind: nextKind,
-    key,
-    existing,
-    originalBase,
-    nextBase
-  } = simulatePlayerDraftMapAfterBaseChange(fieldId, delta);
-  const budget = validatePlayerDraftXpBudget(nextDraftByKey);
-  if (!budget.ok) {
-    throw new Error("Not enough XP Left Over for this staged change.");
+  const triple = getCharacterNumericTriple(character, fieldId);
+  const originalBase = Number(triple.base || 0);
+  const key = getPlayerDraftActionKey(kind, fieldId);
+  const existing = state.playerXpDraftByKey[key] || null;
+  const currentBase = Number(existing?.toLevel ?? originalBase);
+  const maxLevel = PLAYER_XP_BUYABLE_FIELD_MAX_BY_KIND[kind] || 999;
+  const nextBase = currentBase + Number(delta || 0);
+  if (delta > 0 && nextBase > maxLevel) {
+    throw new Error(`${fieldId} base cannot exceed ${maxLevel}.`);
+  }
+  if (delta < 0 && nextBase < originalBase) {
+    throw new Error("Cannot decrease below the last saved base value.");
   }
   if (nextBase === originalBase) {
     delete state.playerXpDraftByKey[key];
@@ -642,7 +488,7 @@ function stagePlayerBaseFieldChange(fieldId, delta) {
     state.playerXpDraftSeq += 1;
     state.playerXpDraftByKey[key] = {
       key,
-      kind: nextKind || kind,
+      kind,
       fieldId,
       originalBase,
       toLevel: nextBase,
@@ -685,11 +531,9 @@ function renderPlayerXpDraftPanel() {
     if (actions.length < 1) {
       stateNode.textContent = reason || "Use +/- buttons next to Base fields to stage XP changes.";
     } else {
-      const budget = validatePlayerDraftXpBudget();
-      const budgetText = ` Staged XP: ${budget.xpRequired}/${budget.xpAvailable}.`;
       stateNode.textContent = reason
-        ? `Draft staged, but cannot submit yet: ${reason}${budgetText}`
-        : `Draft staged. Send request to GM for approval.${budgetText}`;
+        ? `Draft staged, but cannot submit yet: ${reason}`
+        : "Draft staged. Send request to GM for approval.";
     }
   }
   if (outputNode) {
@@ -751,30 +595,23 @@ function ensurePlayerTripletFieldUi() {
     baseWrap.className = "triplet-base-wrap";
     const kind = PLAYER_XP_BUYABLE_FIELD_KIND_BY_ID[fieldId] || "";
     if (kind) {
-      baseWrap.classList.add("quantity");
+      const minus = document.createElement("button");
+      minus.type = "button";
+      minus.className = "ghost triplet-adjust-btn";
+      minus.textContent = "-";
+      minus.dataset.xpDraftFieldId = fieldId;
+      minus.dataset.xpDraftDelta = "-1";
+      baseWrap.appendChild(minus);
     }
     baseWrap.appendChild(input);
     if (kind) {
-      const nav = document.createElement("div");
-      nav.className = "quantity-nav";
-
-      const up = document.createElement("button");
-      up.type = "button";
-      up.className = "ghost triplet-adjust-btn quantity-button quantity-up";
-      up.textContent = "▲";
-      up.dataset.xpDraftFieldId = fieldId;
-      up.dataset.xpDraftDelta = "1";
-
-      const down = document.createElement("button");
-      down.type = "button";
-      down.className = "ghost triplet-adjust-btn quantity-button quantity-down";
-      down.textContent = "▼";
-      down.dataset.xpDraftFieldId = fieldId;
-      down.dataset.xpDraftDelta = "-1";
-
-      nav.appendChild(up);
-      nav.appendChild(down);
-      baseWrap.appendChild(nav);
+      const plus = document.createElement("button");
+      plus.type = "button";
+      plus.className = "ghost triplet-adjust-btn";
+      plus.textContent = "+";
+      plus.dataset.xpDraftFieldId = fieldId;
+      plus.dataset.xpDraftDelta = "1";
+      baseWrap.appendChild(plus);
     }
 
     const grid = document.createElement("div");
@@ -823,19 +660,11 @@ function renderPlayerTripletFields() {
         const delta = Number(button.dataset.xpDraftDelta || 0);
         const baseReason = playerXpBuyBlockedReason();
         const maxLevel = PLAYER_XP_BUYABLE_FIELD_MAX_BY_KIND[kind] || 999;
-        const draftCheck =
-          delta > 0 && kind ? canStagePlayerBaseFieldChange(fieldId, delta) : { ok: true };
         button.disabled =
           !character ||
           !!baseReason ||
           (delta > 0 && base >= maxLevel) ||
-          (delta < 0 && base <= Number(triple.base ?? 0)) ||
-          !draftCheck.ok;
-        if (delta > 0 && !draftCheck.ok) {
-          button.title = draftCheck.reason || "Not enough XP Left Over.";
-        } else if (button.title) {
-          button.title = "";
-        }
+          (delta < 0 && base <= Number(triple.base ?? 0));
       }
     }
   }
@@ -1130,83 +959,6 @@ function setRoleSelection(prefix, campaign) {
   if (activePrefix === prefix) {
     applySharedSelection(next, prefix);
   }
-}
-
-function updateCampaignSessionStateReferences(campaignId, nextSessionState) {
-  const normalized = normalizeCampaignSessionState(nextSessionState);
-  const id = String(campaignId || "").trim();
-  if (!id) {
-    return;
-  }
-
-  for (const campaign of state.masterCampaignCache || []) {
-    if (campaign?.id === id) {
-      campaign.sessionState = normalized;
-    }
-  }
-
-  const masterSelection = getRoleSelection("master");
-  if (masterSelection?.campaignId === id) {
-    setRoleSelection("master", {
-      id: masterSelection.campaignId,
-      name: masterSelection.campaignName,
-      sessionState: normalized,
-      role: "GM"
-    });
-  }
-
-  const playerSelection = getRoleSelection("player");
-  if (playerSelection?.campaignId === id) {
-    setRoleSelection("player", {
-      id: playerSelection.campaignId,
-      name: playerSelection.campaignName,
-      sessionState: normalized,
-      role: "PLAYER"
-    });
-  }
-
-  for (const button of document.querySelectorAll("button[data-campaign-id]")) {
-    if (String(button.dataset.campaignId || "") !== id) {
-      continue;
-    }
-    const baseLabel = String(button.dataset.baseLabel || button.textContent || "");
-    const nextLabel = baseLabel.replace(
-      /\|\s*session:\s*[^|\]]+/i,
-      `| session: ${normalized}`
-    );
-    button.dataset.baseLabel = nextLabel;
-    if (button.dataset.campaignId) {
-      if (button.closest("#player-campaign-list")) {
-        applyCampaignButtonState(button, "player");
-      } else {
-        applyCampaignButtonState(button, "master");
-      }
-    } else {
-      button.textContent = nextLabel;
-    }
-  }
-
-  if (
-    normalized !== "active-offline" &&
-    playerSelection?.campaignId === id &&
-    playerXpDraftActions().length > 0
-  ) {
-    resetPlayerXpDraft({ preserveUi: true });
-  }
-
-  if (state.playerCurrentCharacter) {
-    if (state.playerCurrentCharacter.xpBuyStatus) {
-      state.playerCurrentCharacter.xpBuyStatus.lockedBySessionState =
-        normalized === "active-live";
-      state.playerCurrentCharacter.xpBuyStatus.canBuy =
-        !state.playerCurrentCharacter.xpBuyStatus.lockedBySessionState &&
-        !state.playerCurrentCharacter.xpBuyStatus.frozenByPendingCorrection;
-    }
-    renderPlayerXpBuyStatus();
-    renderPlayerPowerCatalog();
-    renderPlayerMeritsFlawsCatalog();
-  }
-  renderRoleStates();
 }
 
 function syncBrowserPathForPage(pageId, mode = "push") {
@@ -2302,7 +2054,7 @@ function eventQueryPath(prefix) {
   const campaignId = currentCampaignId(prefix);
   const params = new URLSearchParams();
   const type = String(el(`${prefix}-event-type-filter`)?.value || "").trim();
-  const limit = String(el(`${prefix}-event-limit`)?.value || "9").trim();
+  const limit = String(el(`${prefix}-event-limit`)?.value || "50").trim();
   if (type) params.set("type", type);
   if (limit) params.set("limit", limit);
   return `/api/v1/campaigns/${campaignId}/events?${params.toString()}`;
@@ -2312,7 +2064,7 @@ function chatQueryPath(prefix) {
   const campaignId = currentCampaignId(prefix);
   const params = new URLSearchParams();
   const visibility = String(el(`${prefix}-chat-visibility-filter`)?.value || "").trim();
-  const limit = String(el(`${prefix}-chat-limit`)?.value || "9").trim();
+  const limit = String(el(`${prefix}-chat-limit`)?.value || "50").trim();
   if (visibility) params.set("visibility", visibility);
   if (limit) params.set("limit", limit);
   return `/api/v1/campaigns/${campaignId}/chat/messages?${params.toString()}`;
@@ -2336,9 +2088,9 @@ function formatChat(entry) {
 }
 
 function timelineLimit(prefix) {
-  const raw = Number(el(`${prefix}-timeline-limit`)?.value || 9);
+  const raw = Number(el(`${prefix}-timeline-limit`)?.value || 80);
   if (!Number.isInteger(raw)) {
-    return 9;
+    return 80;
   }
   return Math.max(1, Math.min(200, raw));
 }
@@ -2407,44 +2159,6 @@ async function refreshRealtimeSilently(prefix = state.realtimePrefix) {
   }
 }
 
-async function refreshRealtimeCharacterDataSilently(prefix, sessionEventPayload) {
-  const eventType = String(sessionEventPayload?.type || "").toUpperCase();
-  if (!eventType) {
-    return;
-  }
-  const shouldRefreshCharacters = new Set([
-    "CHARACTER_UPDATED",
-    "XP_BUY_CREATED",
-    "XP_BUY_REQUEST_APPROVED",
-    "XP_BUY_REQUEST_DENIED",
-    "SESSION_XP_APPLIED",
-    "XP_CORRECTION_CREATED",
-    "XP_CORRECTION_CONFIRMED",
-    "XP_CORRECTION_DENIED"
-  ]);
-  if (!shouldRefreshCharacters.has(eventType)) {
-    return;
-  }
-
-  try {
-    if (prefix === "player" && hasValidSelectionFor("player")) {
-      await loadPlayerCharacters(true, { autoCreateIfMissing: false });
-    }
-    if (prefix === "master" && hasValidSelectionFor("master")) {
-      await loadMasterCharacters(true);
-      if (
-        eventType === "XP_BUY_REQUEST_APPROVED" ||
-        eventType === "XP_BUY_REQUEST_DENIED" ||
-        eventType === "XP_BUY_REQUEST_CREATED"
-      ) {
-        await loadMasterXpBuyRequests(true);
-      }
-    }
-  } catch {
-    // Keep SSE refresh resilient.
-  }
-}
-
 function ensureRealtimeStream() {
   const prefix = getActivePrefix();
   if (!prefix || !state.token || !hasValidSelectionFor(prefix)) {
@@ -2470,22 +2184,7 @@ function ensureRealtimeStream() {
   const source = new EventSource(
     `/api/v1/campaigns/${campaignId}/stream?${params.toString()}`
   );
-  source.addEventListener("session_event", (event) => {
-    let payload = null;
-    try {
-      payload = JSON.parse(String(event?.data || "{}"));
-      if (
-        payload &&
-        payload.type === "SESSION_STATE_CHANGED" &&
-        payload.payload &&
-        typeof payload.payload.state === "string"
-      ) {
-        updateCampaignSessionStateReferences(campaignId, payload.payload.state);
-      }
-    } catch {
-      // Ignore malformed stream payloads.
-    }
-    void refreshRealtimeCharacterDataSilently(prefix, payload);
+  source.addEventListener("session_event", () => {
     refreshRealtimeSilently(prefix);
   });
   source.addEventListener("chat_message", () => {
@@ -2796,7 +2495,6 @@ function renderMasterCharacterLockControls() {
   const select = el("master-character-select");
   const stateNode = el("master-character-lock-state");
   const output = el("master-character-output");
-  const deleteButton = el("master-delete-selected-character");
   if (!select || !stateNode || !output) {
     return;
   }
@@ -2824,14 +2522,8 @@ function renderMasterCharacterLockControls() {
   if (!selected) {
     stateNode.textContent = "Load characters and select one to manage approvals.";
     output.textContent = "";
-    if (deleteButton instanceof HTMLButtonElement) {
-      deleteButton.disabled = true;
-    }
     renderMasterXpBuyRequestList();
     return;
-  }
-  if (deleteButton instanceof HTMLButtonElement) {
-    deleteButton.disabled = false;
   }
 
   const pendingForSelected = (state.masterXpBuyRequestsCache || []).filter(
@@ -2843,61 +2535,18 @@ function renderMasterCharacterLockControls() {
   stateNode.textContent = `Session: ${
     state.selectedCampaignState || "unknown"
   } | Pending XP requests for selected character: ${pendingForSelected}`;
-  const sessionXpInput = el("master-session-xp-amount");
-  if (sessionXpInput instanceof HTMLInputElement) {
-    const sheetSessionXp = Number(selected.sheet?.sections?.bio?.bioSessionXp || 0);
-    sessionXpInput.placeholder =
-      sheetSessionXp > 0 ? `Session XP (sheet: ${sheetSessionXp})` : "Session XP";
-    if (!sessionXpInput.value && sheetSessionXp > 0) {
-      sessionXpInput.value = String(sheetSessionXp);
-    }
-  }
   output.textContent = JSON.stringify(
     {
       id: selected.id,
       userId: selected.userId,
       name: selected.name,
       xpBuyStatus: selected.xpBuyStatus,
-      pendingXpBuyRequests: pendingForSelected,
-      bioSessionXp: selected.sheet?.sections?.bio?.bioSessionXp ?? null
+      pendingXpBuyRequests: pendingForSelected
     },
     null,
     2
   );
   renderMasterXpBuyRequestList();
-}
-
-async function deleteMasterSelectedCharacter() {
-  const campaignId = currentCampaignId("master");
-  const character = selectedMasterCharacter();
-  if (!character) {
-    throw new Error("Select a character first.");
-  }
-  const name =
-    character.name || character.sheet?.sections?.bio?.name || character.id || "character";
-  const confirmed = window.confirm(
-    `Delete character "${name}"? This also removes related XP buys, XP requests, and XP corrections for that character.`
-  );
-  if (!confirmed) {
-    return { cancelled: true };
-  }
-
-  const result = await api(`/api/v1/campaigns/${campaignId}/characters/${character.id}`, {
-    method: "DELETE"
-  });
-
-  state.masterCharactersCache = state.masterCharactersCache.filter(
-    (entry) => entry.id !== result.deletedCharacterId
-  );
-  if (state.masterSelectedCharacterId === result.deletedCharacterId) {
-    state.masterSelectedCharacterId = state.masterCharactersCache[0]?.id || null;
-  }
-  state.masterXpBuyRequestsCache = (state.masterXpBuyRequestsCache || []).filter(
-    (entry) => entry.characterId !== result.deletedCharacterId
-  );
-  renderMasterCharacterLockControls();
-  await Promise.all([loadEvents("master", true), loadChatMessages("master", true)]);
-  return result;
 }
 
 async function loadMasterCharacters(silent = false) {
@@ -3060,28 +2709,16 @@ async function setMasterXpBuyRequestDecision(requestId, decision) {
   return result;
 }
 
-async function applyMasterSessionXpToSelectedCharacter(xpOverride = null) {
+async function applyMasterSessionXpToSelectedCharacter() {
   const campaignId = currentCampaignId("master");
   const character = selectedMasterCharacter();
   if (!character) {
     throw new Error("Select a character first.");
   }
-  const body = {};
-  const normalizedOverride =
-    xpOverride === null || xpOverride === undefined || String(xpOverride).trim() === ""
-      ? null
-      : Number(xpOverride);
-  if (normalizedOverride !== null) {
-    if (!Number.isInteger(normalizedOverride) || normalizedOverride <= 0) {
-      throw new Error("Session XP amount must be a positive integer.");
-    }
-    body.xp = normalizedOverride;
-  }
   const result = await api(
     `/api/v1/campaigns/${campaignId}/characters/${character.id}/xp/session-claim`,
     {
-      method: "POST",
-      body: JSON.stringify(body)
+      method: "POST"
     }
   );
   if (result.character?.id) {
@@ -3165,10 +2802,9 @@ async function loadSummary(prefix) {
 async function loadEvents(prefix, silent = false) {
   renderEventQuickFilterState(prefix);
   const result = await api(eventQueryPath(prefix));
-  const orderedEvents = [...(result.events || [])].reverse();
   const lines =
-    orderedEvents.length > 0
-      ? orderedEvents.map((entry) => formatEvent(entry)).join("\n")
+    result.events?.length > 0
+      ? result.events.map((entry) => formatEvent(entry)).join("\n")
       : "No events.";
   el(`${prefix}-events-output`).textContent = lines;
   if (!silent) {
@@ -3178,10 +2814,9 @@ async function loadEvents(prefix, silent = false) {
 
 async function loadChatMessages(prefix, silent = false) {
   const result = await api(chatQueryPath(prefix));
-  const orderedMessages = [...(result.messages || [])].reverse();
   const lines =
-    orderedMessages.length > 0
-      ? orderedMessages.map((entry) => formatChat(entry)).join("\n")
+    result.messages?.length > 0
+      ? result.messages.map((entry) => formatChat(entry)).join("\n")
       : "No chat messages.";
   el(`${prefix}-chat-output`).textContent = lines;
   if (!silent) {
@@ -3881,21 +3516,6 @@ function attachMasterHandlers() {
     renderMasterCharacterLockControls();
   });
 
-  el("master-delete-selected-character")?.addEventListener("click", async () => {
-    try {
-      const result = await deleteMasterSelectedCharacter();
-      if (result?.cancelled) {
-        setStatus("Character delete cancelled.");
-        return;
-      }
-      await loadMasterCharacters(true);
-      await loadMasterXpBuyRequests(true);
-      setStatus("Character deleted.", result);
-    } catch (error) {
-      setStatus(error.message);
-    }
-  });
-
   el("master-load-xp-buy-requests")?.addEventListener("click", async () => {
     try {
       await loadMasterXpBuyRequests();
@@ -3906,13 +3526,7 @@ function attachMasterHandlers() {
 
   el("master-apply-session-xp-selected")?.addEventListener("click", async () => {
     try {
-      const xpInput = el("master-session-xp-amount");
-      const xpOverride =
-        xpInput instanceof HTMLInputElement ? String(xpInput.value || "").trim() : "";
-      const result = await applyMasterSessionXpToSelectedCharacter(xpOverride);
-      if (xpInput instanceof HTMLInputElement) {
-        xpInput.value = "";
-      }
+      const result = await applyMasterSessionXpToSelectedCharacter();
       setStatus("Session XP applied to selected character.", result.awardRecord);
     } catch (error) {
       setStatus(error.message);
@@ -4143,7 +3757,6 @@ function attachMasterHandlers() {
           role: "GM"
         });
       }
-      updateCampaignSessionStateReferences(campaignId, result.campaign.sessionState);
       await refreshRoleData("master");
       setStatus("Session state updated.");
     } catch (error) {
