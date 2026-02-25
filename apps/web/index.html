@@ -402,6 +402,10 @@
                 <div id="player-power-catalog-state" class="muted">
                   Powers list: load a campaign to fetch ruleset powers.
                 </div>
+                <div id="player-powers-triplet-state" class="muted">
+                  Powers table: load your character and campaign powers to view current/base/bonus rows.
+                </div>
+                <div id="player-powers-triplet-table" class="power-triplet-list"></div>
                 <div class="row">
                   <select id="player-power-tier-select" disabled>
                     <option value="">tier</option>
@@ -431,6 +435,9 @@
                     readonly
                   ></textarea>
                 </label>
+                <p class="muted">
+                  Inline +/- powers rows are the primary path. The selectors above remain as a temporary fallback.
+                </p>
               </fieldset>
 
               <fieldset class="sheet-section">
@@ -760,6 +767,46 @@
             Load characters to manage approvals.
           </div>
           <ul id="master-xp-buy-request-list"></ul>
+          <h4>Modifier Sources (GM)</h4>
+          <div id="master-modifier-source-state" class="muted">
+            Load characters and select one to manage modifier sources.
+          </div>
+          <form id="master-modifier-source-form" class="row">
+            <input
+              id="master-modifier-source-label"
+              type="text"
+              placeholder="Source label (e.g. Magic Buff)"
+            />
+            <select id="master-modifier-source-kind">
+              <option value="buff">buff</option>
+              <option value="debuff">debuff</option>
+              <option value="equipment">equipment</option>
+              <option value="racial">racial</option>
+              <option value="special">special</option>
+              <option value="manual-gm">manual-gm</option>
+            </select>
+            <select id="master-modifier-source-target">
+              <option value="">target field</option>
+            </select>
+            <input
+              id="master-modifier-source-amount"
+              type="number"
+              step="1"
+              placeholder="amount"
+            />
+            <button id="master-modifier-source-save" type="submit" class="ghost">
+              Add Modifier Source
+            </button>
+            <button id="master-modifier-source-cancel" type="button" class="ghost hidden">
+              Cancel Edit
+            </button>
+          </form>
+          <div class="row">
+            <button id="master-load-modifier-sources" type="button" class="ghost">
+              Load Modifier Sources
+            </button>
+          </div>
+          <ul id="master-modifier-source-list"></ul>
           <pre id="master-character-output"></pre>
         </section>
 

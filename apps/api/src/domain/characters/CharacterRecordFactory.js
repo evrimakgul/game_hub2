@@ -35,6 +35,7 @@ export class CharacterRecordFactory {
           ? adapter.getDefaultSectionLocks()
           : {},
       numericBonuses: {},
+      modifierSources: [],
       createdAt: now,
       updatedAt: now
     };

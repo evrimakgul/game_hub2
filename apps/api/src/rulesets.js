@@ -1,3 +1,6 @@
+import { buildD10PowerCatalogWithMetadata } from "./rulesets/d10/powers/powerCatalogMetadata.js";
+import { buildD10PowerHelpers } from "./rulesets/d10/powers/powerHelpers.js";
+
 function randomIntInclusive(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -1602,6 +1605,270 @@ function normalizeNumericBonuses(raw) {
   return normalized;
 }
 
+function createEmptyNumericBonuses() {
+  return {
+    fields: {},
+    powers: {}
+  };
+}
+
+function mergeNumericBonuses(...entries) {
+  const merged = createEmptyNumericBonuses();
+  for (const entry of entries) {
+    const normalized = normalizeNumericBonuses(entry);
+    for (const [fieldId, amount] of Object.entries(normalized.fields || {})) {
+      merged.fields[fieldId] = integerOrZero(merged.fields[fieldId]) + integerOrZero(amount);
+    }
+    for (const [tierId, tierEntries] of Object.entries(normalized.powers || {})) {
+      if (!isPlainObject(tierEntries)) continue;
+      if (!isPlainObject(merged.powers[tierId])) {
+        merged.powers[tierId] = {};
+      }
+      for (const [powerId, amount] of Object.entries(tierEntries)) {
+        merged.powers[tierId][powerId] =
+          integerOrZero(merged.powers[tierId][powerId]) + integerOrZero(amount);
+      }
+    }
+  }
+  return merged;
+}
+
+function createEmptyBreakdownLeaf() {
+  return {
+    channels: {},
+    sources: []
+  };
+}
+
+function addBreakdownContribution(leaf, { channel, sourceId, modifierId, label, amount, targetFieldId }) {
+  if (!leaf || !Number.isInteger(amount) || amount === 0) {
+    return;
+  }
+  const channelId = String(channel || "manual").trim().toLowerCase() || "manual";
+  leaf.channels[channelId] = integerOrZero(leaf.channels[channelId]) + amount;
+  leaf.sources.push({
+    id: modifierId ? `${sourceId}:${modifierId}` : String(sourceId || "modifier-source"),
+    sourceId: sourceId || null,
+    modifierId: modifierId || null,
+    label: label || "Modifier Source",
+    channel: channelId,
+    amount,
+    targetFieldId: targetFieldId || null
+  });
+}
+
+function normalizeModifierSourceChannel(channel, sourceKind) {
+  const raw = String(channel || "").trim().toLowerCase();
+  if (raw === "manual-gm") return "manual";
+  if (raw) return raw;
+  const kind = String(sourceKind || "").trim().toLowerCase();
+  if (kind === "manual-gm") return "manual";
+  return kind || "manual";
+}
+
+function resolveModifierTargetFieldId(targetFieldId) {
+  const raw = String(targetFieldId || "").trim();
+  if (!raw) return null;
+
+  if (raw.startsWith("powers.")) {
+    const parts = raw.split(".");
+    if (parts.length === 2) {
+      const powerId = parts[1];
+      if (!D10_POWER_LABEL_BY_TIER_AND_ID.get("t1")?.has(powerId)) {
+        return null;
+      }
+      return {
+        kind: "power",
+        tierId: "t1",
+        powerId,
+        canonicalTargetFieldId: `powers.t1.${powerId}`
+      };
+    }
+    if (parts.length === 3) {
+      const [, tierId, powerId] = parts;
+      if (!D10_POWER_LABEL_BY_TIER_AND_ID.get(tierId)?.has(powerId)) {
+        return null;
+      }
+      return {
+        kind: "power",
+        tierId,
+        powerId,
+        canonicalTargetFieldId: `powers.${tierId}.${powerId}`
+      };
+    }
+    return null;
+  }
+
+  if (raw.startsWith("stats.")) {
+    const parts = raw.split(".");
+    if (parts.length !== 3) return null;
+    const [, groupId, fieldId] = parts;
+    const path = D10_STAT_FIELD_PATHS[fieldId];
+    if (!path || path[0] !== groupId) return null;
+    return {
+      kind: "field",
+      fieldId,
+      canonicalTargetFieldId: `stats.${groupId}.${fieldId}`
+    };
+  }
+
+  if (raw.startsWith("skills.")) {
+    const parts = raw.split(".");
+    if (parts.length !== 2) return null;
+    const [, fieldId] = parts;
+    if (!D10_SKILL_FIELD_IDS.has(fieldId)) return null;
+    return {
+      kind: "field",
+      fieldId,
+      canonicalTargetFieldId: `skills.${fieldId}`
+    };
+  }
+
+  if (raw.startsWith("combat.")) {
+    const parts = raw.split(".");
+    if (parts.length !== 2) return null;
+    const [, fieldId] = parts;
+    if (!D10_COMBAT_FIELD_IDS.has(fieldId)) return null;
+    return {
+      kind: "field",
+      fieldId,
+      canonicalTargetFieldId: `combat.${fieldId}`
+    };
+  }
+
+  if (D10_STAT_FIELD_IDS.has(raw)) {
+    const [groupId] = D10_STAT_FIELD_PATHS[raw] || [];
+    return {
+      kind: "field",
+      fieldId: raw,
+      canonicalTargetFieldId: groupId ? `stats.${groupId}.${raw}` : raw
+    };
+  }
+  if (D10_SKILL_FIELD_IDS.has(raw)) {
+    return {
+      kind: "field",
+      fieldId: raw,
+      canonicalTargetFieldId: `skills.${raw}`
+    };
+  }
+  if (D10_COMBAT_FIELD_IDS.has(raw)) {
+    return {
+      kind: "field",
+      fieldId: raw,
+      canonicalTargetFieldId: `combat.${raw}`
+    };
+  }
+  return null;
+}
+
+function aggregateModifierSources(modifierSources) {
+  const numericBonuses = createEmptyNumericBonuses();
+  const breakdowns = {
+    combat: {},
+    stats: {},
+    skills: {},
+    powers: {}
+  };
+
+  if (!Array.isArray(modifierSources)) {
+    return { numericBonuses, numericBreakdowns: breakdowns };
+  }
+
+  for (const source of modifierSources) {
+    if (!source || typeof source !== "object" || source.active === false) {
+      continue;
+    }
+    const sourceId = String(source.id || "");
+    const sourceLabel = String(source.label || "Modifier Source");
+    const sourceKind = String(source.kind || "");
+    for (const modifier of Array.isArray(source.modifiers) ? source.modifiers : []) {
+      const amount = Number(modifier?.amount);
+      if (!Number.isInteger(amount) || amount === 0) {
+        continue;
+      }
+      const resolved = resolveModifierTargetFieldId(modifier?.targetFieldId);
+      if (!resolved) {
+        continue;
+      }
+      const channel = normalizeModifierSourceChannel(modifier?.channel, sourceKind);
+      if (resolved.kind === "power") {
+        if (!isPlainObject(numericBonuses.powers[resolved.tierId])) {
+          numericBonuses.powers[resolved.tierId] = {};
+        }
+        numericBonuses.powers[resolved.tierId][resolved.powerId] =
+          integerOrZero(numericBonuses.powers[resolved.tierId][resolved.powerId]) + amount;
+        if (!isPlainObject(breakdowns.powers[resolved.tierId])) {
+          breakdowns.powers[resolved.tierId] = {};
+        }
+        if (!breakdowns.powers[resolved.tierId][resolved.powerId]) {
+          breakdowns.powers[resolved.tierId][resolved.powerId] = createEmptyBreakdownLeaf();
+        }
+        addBreakdownContribution(breakdowns.powers[resolved.tierId][resolved.powerId], {
+          channel,
+          sourceId,
+          modifierId: modifier?.id || null,
+          label: sourceLabel,
+          amount,
+          targetFieldId: resolved.canonicalTargetFieldId
+        });
+        continue;
+      }
+
+      numericBonuses.fields[resolved.fieldId] =
+        integerOrZero(numericBonuses.fields[resolved.fieldId]) + amount;
+
+      if (D10_COMBAT_FIELD_IDS.has(resolved.fieldId)) {
+        if (!breakdowns.combat[resolved.fieldId]) {
+          breakdowns.combat[resolved.fieldId] = createEmptyBreakdownLeaf();
+        }
+        addBreakdownContribution(breakdowns.combat[resolved.fieldId], {
+          channel,
+          sourceId,
+          modifierId: modifier?.id || null,
+          label: sourceLabel,
+          amount,
+          targetFieldId: resolved.canonicalTargetFieldId
+        });
+        continue;
+      }
+      if (D10_SKILL_FIELD_IDS.has(resolved.fieldId)) {
+        if (!breakdowns.skills[resolved.fieldId]) {
+          breakdowns.skills[resolved.fieldId] = createEmptyBreakdownLeaf();
+        }
+        addBreakdownContribution(breakdowns.skills[resolved.fieldId], {
+          channel,
+          sourceId,
+          modifierId: modifier?.id || null,
+          label: sourceLabel,
+          amount,
+          targetFieldId: resolved.canonicalTargetFieldId
+        });
+        continue;
+      }
+      if (D10_STAT_FIELD_IDS.has(resolved.fieldId)) {
+        const [groupId] = D10_STAT_FIELD_PATHS[resolved.fieldId] || [];
+        if (!groupId) continue;
+        if (!isPlainObject(breakdowns.stats[groupId])) {
+          breakdowns.stats[groupId] = {};
+        }
+        if (!breakdowns.stats[groupId][resolved.fieldId]) {
+          breakdowns.stats[groupId][resolved.fieldId] = createEmptyBreakdownLeaf();
+        }
+        addBreakdownContribution(breakdowns.stats[groupId][resolved.fieldId], {
+          channel,
+          sourceId,
+          modifierId: modifier?.id || null,
+          label: sourceLabel,
+          amount,
+          targetFieldId: resolved.canonicalTargetFieldId
+        });
+      }
+    }
+  }
+
+  return { numericBonuses, numericBreakdowns: breakdowns };
+}
+
 function buildNumericTriples(sections, { progression = {}, numericBonuses = {} } = {}) {
   const bonuses = normalizeNumericBonuses(numericBonuses);
   const triples = {
@@ -1653,6 +1920,133 @@ function buildNumericTriples(sections, { progression = {}, numericBonuses = {} }
     numericBonuses: bonuses,
     numericTriples: triples
   };
+}
+
+function createLegacyNumericBreakdown(amount) {
+  const bonus = integerOrZero(amount);
+  if (bonus === 0) {
+    return {
+      channels: {},
+      sources: []
+    };
+  }
+  return {
+    channels: {
+      legacy: bonus
+    },
+    sources: [
+      {
+        id: "legacy-numeric-bonus",
+        label: "Legacy Numeric Bonus",
+        channel: "legacy",
+        amount: bonus
+      }
+    ]
+  };
+}
+
+function mergeBreakdownLeaf(target, source) {
+  const next = target || createEmptyBreakdownLeaf();
+  for (const [channel, amount] of Object.entries(source?.channels || {})) {
+    next.channels[channel] = integerOrZero(next.channels[channel]) + integerOrZero(amount);
+  }
+  next.sources.push(...((source?.sources || []).map((entry) => ({ ...entry }))));
+  return next;
+}
+
+function buildNumericBreakdowns({
+  progression = {},
+  numericBonuses = {},
+  numericTriples = {},
+  legacyNumericBonuses = {},
+  modifierSourceBreakdowns = null
+} = {}) {
+  const bonuses = normalizeNumericBonuses(numericBonuses);
+  const legacyBonuses = normalizeNumericBonuses(legacyNumericBonuses);
+  const breakdowns = {
+    combat: {},
+    stats: {},
+    skills: {},
+    powers: {}
+  };
+
+  for (const fieldId of D10_COMBAT_FIELD_IDS) {
+    breakdowns.combat[fieldId] = createEmptyBreakdownLeaf();
+    mergeBreakdownLeaf(breakdowns.combat[fieldId], createLegacyNumericBreakdown(legacyBonuses.fields?.[fieldId]));
+  }
+
+  for (const [groupId, fieldIds] of D10_STATS_GROUP_FIELD_IDS.entries()) {
+    breakdowns.stats[groupId] = {};
+    for (const fieldId of fieldIds) {
+      breakdowns.stats[groupId][fieldId] = createEmptyBreakdownLeaf();
+      mergeBreakdownLeaf(
+        breakdowns.stats[groupId][fieldId],
+        createLegacyNumericBreakdown(legacyBonuses.fields?.[fieldId])
+      );
+    }
+  }
+
+  for (const fieldId of D10_SKILL_FIELD_IDS) {
+    breakdowns.skills[fieldId] = createEmptyBreakdownLeaf();
+    mergeBreakdownLeaf(breakdowns.skills[fieldId], createLegacyNumericBreakdown(legacyBonuses.fields?.[fieldId]));
+  }
+
+  const powerRows =
+    isPlainObject(numericTriples?.powers) ? numericTriples.powers : isPlainObject(progression?.powers) ? progression.powers : {};
+  for (const [tierId, tierEntries] of Object.entries(powerRows)) {
+    if (!isPlainObject(tierEntries)) {
+      continue;
+    }
+    breakdowns.powers[tierId] = {};
+    for (const powerId of Object.keys(tierEntries)) {
+      breakdowns.powers[tierId][powerId] = createEmptyBreakdownLeaf();
+      mergeBreakdownLeaf(
+        breakdowns.powers[tierId][powerId],
+        createLegacyNumericBreakdown(legacyBonuses.powers?.[tierId]?.[powerId])
+      );
+    }
+  }
+
+  const sourceBreakdowns =
+    modifierSourceBreakdowns && isPlainObject(modifierSourceBreakdowns)
+      ? modifierSourceBreakdowns
+      : {};
+  for (const [fieldId, leaf] of Object.entries(sourceBreakdowns.combat || {})) {
+    if (!breakdowns.combat[fieldId]) {
+      breakdowns.combat[fieldId] = createEmptyBreakdownLeaf();
+    }
+    mergeBreakdownLeaf(breakdowns.combat[fieldId], leaf);
+  }
+  for (const [groupId, rows] of Object.entries(sourceBreakdowns.stats || {})) {
+    if (!isPlainObject(breakdowns.stats[groupId])) {
+      breakdowns.stats[groupId] = {};
+    }
+    for (const [fieldId, leaf] of Object.entries(rows || {})) {
+      if (!breakdowns.stats[groupId][fieldId]) {
+        breakdowns.stats[groupId][fieldId] = createEmptyBreakdownLeaf();
+      }
+      mergeBreakdownLeaf(breakdowns.stats[groupId][fieldId], leaf);
+    }
+  }
+  for (const [fieldId, leaf] of Object.entries(sourceBreakdowns.skills || {})) {
+    if (!breakdowns.skills[fieldId]) {
+      breakdowns.skills[fieldId] = createEmptyBreakdownLeaf();
+    }
+    mergeBreakdownLeaf(breakdowns.skills[fieldId], leaf);
+  }
+  for (const [tierId, rows] of Object.entries(sourceBreakdowns.powers || {})) {
+    if (!isPlainObject(breakdowns.powers[tierId])) {
+      breakdowns.powers[tierId] = {};
+    }
+    for (const [powerId, leaf] of Object.entries(rows || {})) {
+      if (!breakdowns.powers[tierId][powerId]) {
+        breakdowns.powers[tierId][powerId] = createEmptyBreakdownLeaf();
+      }
+      mergeBreakdownLeaf(breakdowns.powers[tierId][powerId], leaf);
+    }
+  }
+
+  return breakdowns;
 }
 
 function applyNumericTriplesToSections(sections, triples) {
@@ -1946,7 +2340,7 @@ class D10RulesetAdapter {
   }
 
   getPowerSystem() {
-    return structuredClone(D10_POWER_SYSTEM_V1);
+    return buildD10PowerCatalogWithMetadata(D10_POWER_SYSTEM_V1);
   }
 
   getMeritsFlawsSystem() {
@@ -2070,19 +2464,36 @@ class D10RulesetAdapter {
         userId: character.userId
       }
     );
+    const modifierAggregation = aggregateModifierSources(character.modifierSources);
+    const combinedNumericBonuses = mergeNumericBonuses(
+      character.numericBonuses,
+      modifierAggregation.numericBonuses
+    );
     const { numericBonuses, numericTriples } = buildNumericTriples(derivedSections, {
       progression: derivedProgression.progression,
-      numericBonuses: character.numericBonuses
+      numericBonuses: combinedNumericBonuses
+    });
+    const numericBreakdowns = buildNumericBreakdowns({
+      progression: derivedProgression.progression,
+      numericBonuses,
+      numericTriples,
+      legacyNumericBonuses: character.numericBonuses,
+      modifierSourceBreakdowns: modifierAggregation.numericBreakdowns
     });
     const displaySections = applyNumericTriplesToSections(derivedSections, numericTriples);
+    const powerHelpers = buildD10PowerHelpers({
+      sections: displaySections,
+      numericTriples
+    });
 
     return {
       ...character,
-      ...createD10SheetData(displaySections)
-      ,
+      ...createD10SheetData(displaySections),
       sectionLocks,
       numericBonuses,
       numericTriples,
+      numericBreakdowns,
+      powerHelpers,
       progression: structuredClone(derivedProgression.progression),
       xpBuyStatus: {
         lockedBySessionState,
@@ -2127,17 +2538,34 @@ class D10RulesetAdapter {
         userId: character.userId
       }
     });
+    const modifierAggregation = aggregateModifierSources(character.modifierSources);
     const { numericBonuses, numericTriples } = buildNumericTriples(derivedSections, {
       progression: derivedProgression.progression,
-      numericBonuses: normalized.numericBonuses || character.numericBonuses
+      numericBonuses: mergeNumericBonuses(
+        character.numericBonuses,
+        modifierAggregation.numericBonuses
+      )
+    });
+    const numericBreakdowns = buildNumericBreakdowns({
+      progression: derivedProgression.progression,
+      numericBonuses,
+      numericTriples,
+      legacyNumericBonuses: character.numericBonuses,
+      modifierSourceBreakdowns: modifierAggregation.numericBreakdowns
     });
     const displaySections = applyNumericTriplesToSections(derivedSections, numericTriples);
+    const powerHelpers = buildD10PowerHelpers({
+      sections: displaySections,
+      numericTriples
+    });
 
     return {
       ...normalized,
       ...createD10SheetData(displaySections),
       numericBonuses,
-      numericTriples
+      numericTriples,
+      numericBreakdowns,
+      powerHelpers
     };
   }
 

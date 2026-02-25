@@ -166,7 +166,8 @@ const PLAYER_XP_BUYABLE_FIELD_KIND_BY_ID = Object.freeze({
 });
 const PLAYER_XP_BUYABLE_FIELD_MAX_BY_KIND = Object.freeze({
   STAT: 10,
-  SKILL: 10
+  SKILL: 10,
+  POWER: 10
 });
 const PLAYER_D10_XP_COST_BY_STAT_LEVEL = Object.freeze({
   2: 3,
@@ -191,6 +192,27 @@ const PLAYER_D10_XP_COST_BY_SKILL_LEVEL = Object.freeze({
   9: 16,
   10: 18
 });
+const PLAYER_D10_XP_COST_BY_T1_POWER_LEVEL = Object.freeze({
+  1: 10,
+  2: 6,
+  3: 12,
+  4: 18,
+  5: 24,
+  6: 30,
+  7: 36,
+  8: 42,
+  9: 48,
+  10: 54
+});
+const PLAYER_POWER_LINKED_STAT_LABELS = Object.freeze({
+  per: "PER",
+  stam: "STAM",
+  cha: "CHA",
+  int: "INT",
+  app: "APP",
+  man: "MAN"
+});
+const PLAYER_POWER_DRAFT_FIELD_PREFIX = "power:";
 const PLAYER_COMBAT_FIELD_SET = new Set(PLAYER_COMBAT_FIELDS);
 const PLAYER_SKILL_FIELD_SET = new Set(PLAYER_SKILL_FIELDS.map((entry) => entry.id));
 const PLAYER_STAT_GROUP_BY_FIELD_ID = new Map(
@@ -323,7 +345,10 @@ const state = {
   playerXpDraftSeq: 0,
   masterCharactersCache: [],
   masterSelectedCharacterId: null,
-  masterXpBuyRequestsCache: []
+  masterXpBuyRequestsCache: [],
+  masterModifierSourcesCache: [],
+  masterModifierSourcesCharacterId: null,
+  masterModifierSourceEditId: null
 };
 
 function normalizeCampaignSessionState(value) {
@@ -441,6 +466,7 @@ function renderPlayerXpBuyStatus() {
   }
   renderPlayerXpDraftPanel();
   renderPlayerTripletFields();
+  renderPlayerPowerTripletTable();
 }
 
 function playerXpDraftActions() {
@@ -454,6 +480,7 @@ function resetPlayerXpDraft({ preserveUi = false } = {}) {
   if (!preserveUi) {
     renderPlayerXpDraftPanel();
     renderPlayerTripletFields();
+    renderPlayerPowerTripletTable();
   }
 }
 
@@ -490,6 +517,46 @@ function getCharacterNumericTriple(character, fieldId) {
   };
 }
 
+function playerPowerDraftFieldId(tierId, powerId) {
+  return `${PLAYER_POWER_DRAFT_FIELD_PREFIX}${String(tierId || "").trim()}:${String(powerId || "").trim()}`;
+}
+
+function parsePlayerPowerDraftFieldId(fieldId) {
+  const value = String(fieldId || "");
+  if (!value.startsWith(PLAYER_POWER_DRAFT_FIELD_PREFIX)) {
+    return null;
+  }
+  const raw = value.slice(PLAYER_POWER_DRAFT_FIELD_PREFIX.length);
+  const [tierId, powerId] = raw.split(":");
+  if (!tierId || !powerId) {
+    return null;
+  }
+  return {
+    tierId: String(tierId).trim(),
+    powerId: String(powerId).trim()
+  };
+}
+
+function getCharacterPowerNumericTriple(character, tierId, powerId) {
+  if (!character) {
+    return { base: 0, bonus: 0, current: 0 };
+  }
+  const triple = character.numericTriples?.powers?.[tierId]?.[powerId];
+  if (triple) {
+    return {
+      base: Number(triple.base || 0) || 0,
+      bonus: Number(triple.bonus || 0) || 0,
+      current: Number(triple.current || 0) || 0
+    };
+  }
+  const base = Number(character.progression?.powers?.[tierId]?.[powerId] || 0) || 0;
+  return {
+    base,
+    bonus: 0,
+    current: base
+  };
+}
+
 function getPlayerDraftActionKey(kind, fieldId) {
   return `${String(kind || "").toUpperCase()}:${String(fieldId || "").trim()}`;
 }
@@ -501,6 +568,9 @@ function xpCostMapForPlayerDraftKind(kind) {
   }
   if (upper === "SKILL") {
     return PLAYER_D10_XP_COST_BY_SKILL_LEVEL;
+  }
+  if (upper === "POWER") {
+    return PLAYER_D10_XP_COST_BY_T1_POWER_LEVEL;
   }
   return null;
 }
@@ -652,12 +722,112 @@ function stagePlayerBaseFieldChange(fieldId, delta) {
   renderPlayerXpBuyStatus();
 }
 
+function simulatePlayerDraftMapAfterPowerChange(tierId, powerId, delta) {
+  const character = playerCurrentCharacter();
+  if (!character) {
+    throw new Error("Load your character first.");
+  }
+  const triple = getCharacterPowerNumericTriple(character, tierId, powerId);
+  const originalBase = Number(triple.base || 0);
+  const fieldId = playerPowerDraftFieldId(tierId, powerId);
+  const key = getPlayerDraftActionKey("POWER", fieldId);
+  const existing = (state.playerXpDraftByKey || {})[key] || null;
+  const currentBase = Number(existing?.toLevel ?? originalBase);
+  const maxLevel = PLAYER_XP_BUYABLE_FIELD_MAX_BY_KIND.POWER || 10;
+  const nextBase = currentBase + Number(delta || 0);
+  if (delta > 0 && nextBase > maxLevel) {
+    throw new Error(`Power level cannot exceed ${maxLevel}.`);
+  }
+  if (delta < 0 && nextBase < originalBase) {
+    throw new Error("Cannot decrease below the last saved base value.");
+  }
+  const nextDraftByKey = { ...(state.playerXpDraftByKey || {}) };
+  if (nextBase === originalBase) {
+    delete nextDraftByKey[key];
+  } else {
+    nextDraftByKey[key] = {
+      key,
+      kind: "POWER",
+      fieldId,
+      tierId,
+      powerId,
+      originalBase,
+      toLevel: nextBase,
+      seq: existing?.seq || (Number(state.playerXpDraftSeq || 0) + 1)
+    };
+  }
+  return {
+    nextDraftByKey,
+    noChange: nextBase === currentBase,
+    key,
+    existing,
+    originalBase,
+    nextBase,
+    tierId,
+    powerId
+  };
+}
+
+function canStagePlayerPowerFieldChange(tierId, powerId, delta) {
+  try {
+    const { nextDraftByKey } = simulatePlayerDraftMapAfterPowerChange(tierId, powerId, delta);
+    const budget = validatePlayerDraftXpBudget(nextDraftByKey);
+    if (!budget.ok) {
+      return {
+        ok: false,
+        reason: `Not enough XP Left Over (${budget.xpRequired}/${budget.xpAvailable}).`
+      };
+    }
+    return { ok: true, reason: "" };
+  } catch (error) {
+    return { ok: false, reason: error?.message || "Cannot stage power XP change." };
+  }
+}
+
+function stagePlayerPowerFieldChange(tierId, powerId, delta) {
+  const reason = playerXpBuyBlockedReason();
+  if (reason) {
+    throw new Error(reason);
+  }
+  const {
+    nextDraftByKey,
+    key,
+    existing,
+    originalBase,
+    nextBase
+  } = simulatePlayerDraftMapAfterPowerChange(tierId, powerId, delta);
+  const budget = validatePlayerDraftXpBudget(nextDraftByKey);
+  if (!budget.ok) {
+    throw new Error("Not enough XP Left Over for this staged power change.");
+  }
+  if (nextBase === originalBase) {
+    delete state.playerXpDraftByKey[key];
+  } else {
+    state.playerXpDraftSeq += 1;
+    state.playerXpDraftByKey[key] = {
+      ...nextDraftByKey[key],
+      seq: existing?.seq || state.playerXpDraftSeq
+    };
+  }
+  renderPlayerXpBuyStatus();
+}
+
 function buildPlayerXpBuyRequestActionsFromDraft() {
-  return playerXpDraftActions().map((entry) => ({
-    kind: entry.kind,
-    fieldId: entry.fieldId,
-    toLevel: Number(entry.toLevel)
-  }));
+  return playerXpDraftActions().map((entry) => {
+    if (String(entry?.kind || "").toUpperCase() === "POWER") {
+      return {
+        kind: "POWER",
+        tierId: String(entry.tierId || "t1"),
+        powerId: String(entry.powerId || ""),
+        toLevel: Number(entry.toLevel)
+      };
+    }
+    return {
+      kind: entry.kind,
+      fieldId: entry.fieldId,
+      toLevel: Number(entry.toLevel)
+    };
+  });
 }
 
 async function submitPlayerXpBuyRequest(actions, note = "") {
@@ -841,6 +1011,175 @@ function renderPlayerTripletFields() {
   }
 }
 
+function renderPlayerPowerTripletTable() {
+  const container = el("player-powers-triplet-table");
+  const stateNode = el("player-powers-triplet-state");
+  if (!container || !stateNode) {
+    return;
+  }
+
+  container.innerHTML = "";
+  const character = playerCurrentCharacter();
+  const powerSystem = state.playerPowerCatalog;
+
+  if (!hasValidSelectionFor("player")) {
+    stateNode.textContent = "Powers table: select a player campaign first.";
+    return;
+  }
+  if (!character) {
+    stateNode.textContent = "Powers table: load your character first.";
+    return;
+  }
+  if (!powerSystem?.tiers?.length) {
+    stateNode.textContent = "Powers table: load campaign powers first.";
+    return;
+  }
+
+  let renderedRows = 0;
+  for (const tier of powerSystem.tiers || []) {
+    const tierId = String(tier?.id || "").trim();
+    if (!tierId) continue;
+
+    const tierNode = document.createElement("div");
+    tierNode.className = "power-triplet-tier";
+
+    const tierTitle = document.createElement("div");
+    tierTitle.className = "power-triplet-tier-title";
+    tierTitle.textContent = String(tier.label || tier.title || tierId);
+    tierNode.appendChild(tierTitle);
+
+    for (const power of tier.powers || []) {
+      const powerId = String(power?.id || "").trim();
+      if (!powerId) continue;
+      renderedRows += 1;
+
+      const row = document.createElement("div");
+      row.className = "power-triplet-row";
+
+      const header = document.createElement("div");
+      header.className = "power-triplet-row-header";
+
+      const nameNode = document.createElement("div");
+      nameNode.className = "power-triplet-name";
+      nameNode.textContent = String(power.label || powerId);
+      header.appendChild(nameNode);
+
+      const metaParts = [];
+      if (power.abbr) {
+        metaParts.push(String(power.abbr));
+      }
+      if (power.linkedStatId) {
+        metaParts.push(PLAYER_POWER_LINKED_STAT_LABELS[String(power.linkedStatId).toLowerCase()] || String(power.linkedStatId).toUpperCase());
+      }
+      if (metaParts.length > 0) {
+        const metaNode = document.createElement("div");
+        metaNode.className = "power-triplet-meta";
+        metaNode.textContent = `(${metaParts.join(" | ")})`;
+        header.appendChild(metaNode);
+      }
+
+      row.appendChild(header);
+
+      const triple = getCharacterPowerNumericTriple(character, tierId, powerId);
+      const fieldId = playerPowerDraftFieldId(tierId, powerId);
+      const key = getPlayerDraftActionKey("POWER", fieldId);
+      const draft = state.playerXpDraftByKey[key] || null;
+      const base = Number(draft?.toLevel ?? triple.base ?? 0);
+      const bonus = Number(triple.bonus ?? 0);
+      const current = base + bonus;
+
+      const currentInput = createTripletReadonlyInput("current", "triplet-current-input");
+      currentInput.value = String(current);
+      const bonusInput = createTripletReadonlyInput("bonus", "triplet-bonus-input");
+      bonusInput.value = String(bonus);
+      const baseInput = document.createElement("input");
+      baseInput.type = "number";
+      baseInput.readOnly = true;
+      baseInput.className = "triplet-base-input";
+      baseInput.value = String(base);
+
+      const baseWrap = document.createElement("div");
+      baseWrap.className = "triplet-base-wrap quantity";
+      baseWrap.appendChild(baseInput);
+
+      const nav = document.createElement("div");
+      nav.className = "quantity-nav";
+      const up = document.createElement("button");
+      up.type = "button";
+      up.className = "ghost quantity-button quantity-up";
+      up.textContent = "+";
+      up.dataset.powerTierId = tierId;
+      up.dataset.powerId = powerId;
+      up.dataset.powerDraftDelta = "1";
+
+      const down = document.createElement("button");
+      down.type = "button";
+      down.className = "ghost quantity-button quantity-down";
+      down.textContent = "-";
+      down.dataset.powerTierId = tierId;
+      down.dataset.powerId = powerId;
+      down.dataset.powerDraftDelta = "-1";
+
+      nav.appendChild(up);
+      nav.appendChild(down);
+      baseWrap.appendChild(nav);
+
+      const grid = document.createElement("div");
+      grid.className = "triplet-grid";
+      grid.appendChild(createTripletCell("Current", currentInput));
+      grid.appendChild(createTripletCell("Base", baseWrap));
+      grid.appendChild(createTripletCell("Bonus", bonusInput));
+      row.appendChild(grid);
+
+      const helper = character.powerHelpers?.[powerId];
+      const helperSummary =
+        typeof helper?.summary === "string" && helper.summary.trim()
+          ? helper.summary.trim()
+          : "";
+      if (helperSummary) {
+        const helperNode = document.createElement("div");
+        helperNode.className = "power-triplet-helper";
+        helperNode.textContent = helperSummary;
+        row.appendChild(helperNode);
+      }
+
+      const baseReason = playerXpBuyBlockedReason();
+      const originalBase = Number(triple.base ?? 0);
+      const maxLevel = PLAYER_XP_BUYABLE_FIELD_MAX_BY_KIND.POWER || 10;
+      for (const button of [up, down]) {
+        const delta = Number(button.dataset.powerDraftDelta || 0);
+        const draftCheck =
+          delta > 0 ? canStagePlayerPowerFieldChange(tierId, powerId, delta) : { ok: true };
+        button.disabled =
+          !!baseReason ||
+          (delta > 0 && base >= maxLevel) ||
+          (delta < 0 && base <= originalBase) ||
+          !draftCheck.ok;
+        if (delta > 0 && !draftCheck.ok) {
+          button.title = draftCheck.reason || "Not enough XP Left Over.";
+        } else if (baseReason) {
+          button.title = baseReason;
+        } else {
+          button.title = "";
+        }
+      }
+
+      tierNode.appendChild(row);
+    }
+
+    container.appendChild(tierNode);
+  }
+
+  const sectionState = isPlayerSectionXpBuyAllowed("powersSpells");
+  if (renderedRows < 1) {
+    stateNode.textContent = "Powers table: no powers available in current ruleset.";
+    return;
+  }
+  stateNode.textContent = sectionState.allowed
+    ? "Powers table loaded. Use +/- next to Base to stage power XP changes."
+    : `Powers table loaded. ${sectionState.reason}`;
+}
+
 function populateXpBuyBaseSelectorsOnce() {
   const statSelect = el("player-xp-stat-select");
   const skillSelect = el("player-xp-skill-select");
@@ -930,6 +1269,7 @@ function renderPlayerPowerCatalog() {
   statusNode.textContent = sectionState.allowed
     ? "Powers list loaded from ruleset. Choose a tier/power and target level, then send a request."
     : `Powers list loaded from ruleset. ${sectionState.reason}`;
+  renderPlayerPowerTripletTable();
 }
 
 async function loadPlayerPowerCatalog(silent = false) {
@@ -2228,12 +2568,19 @@ function clearRoleOutputs(prefix) {
     state.masterCharactersCache = [];
     state.masterSelectedCharacterId = null;
     state.masterXpBuyRequestsCache = [];
+    state.masterModifierSourcesCache = [];
+    state.masterModifierSourcesCharacterId = null;
+    state.masterModifierSourceEditId = null;
     if (activeGames) activeGames.innerHTML = "";
     if (passiveGames) passiveGames.innerHTML = "";
     if (rulesets) rulesets.innerHTML = "";
     const requestList = el("master-xp-buy-request-list");
     if (requestList) {
       requestList.innerHTML = "";
+    }
+    const modifierList = el("master-modifier-source-list");
+    if (modifierList) {
+      modifierList.innerHTML = "";
     }
     renderMasterCharacterLockControls();
   }
@@ -2417,6 +2764,10 @@ async function refreshRealtimeCharacterDataSilently(prefix, sessionEventPayload)
     "XP_BUY_CREATED",
     "XP_BUY_REQUEST_APPROVED",
     "XP_BUY_REQUEST_DENIED",
+    "MODIFIER_SOURCE_CREATED",
+    "MODIFIER_SOURCE_UPDATED",
+    "MODIFIER_SOURCE_DELETED",
+    "MODIFIER_SOURCE_TOGGLED",
     "SESSION_XP_APPLIED",
     "XP_CORRECTION_CREATED",
     "XP_CORRECTION_CONFIRMED",
@@ -2438,6 +2789,18 @@ async function refreshRealtimeCharacterDataSilently(prefix, sessionEventPayload)
         eventType === "XP_BUY_REQUEST_CREATED"
       ) {
         await loadMasterXpBuyRequests(true);
+      }
+      if (
+        eventType === "MODIFIER_SOURCE_CREATED" ||
+        eventType === "MODIFIER_SOURCE_UPDATED" ||
+        eventType === "MODIFIER_SOURCE_DELETED" ||
+        eventType === "MODIFIER_SOURCE_TOGGLED"
+      ) {
+        try {
+          await loadMasterModifierSources(true);
+        } catch {
+          // The selected character may have changed or been deleted.
+        }
       }
     }
   } catch {
@@ -2828,6 +3191,7 @@ function renderMasterCharacterLockControls() {
       deleteButton.disabled = true;
     }
     renderMasterXpBuyRequestList();
+    renderMasterModifierSourceControls();
     return;
   }
   if (deleteButton instanceof HTMLButtonElement) {
@@ -2865,6 +3229,7 @@ function renderMasterCharacterLockControls() {
     2
   );
   renderMasterXpBuyRequestList();
+  renderMasterModifierSourceControls();
 }
 
 async function deleteMasterSelectedCharacter() {
@@ -2895,6 +3260,11 @@ async function deleteMasterSelectedCharacter() {
   state.masterXpBuyRequestsCache = (state.masterXpBuyRequestsCache || []).filter(
     (entry) => entry.characterId !== result.deletedCharacterId
   );
+  if (state.masterModifierSourcesCharacterId === result.deletedCharacterId) {
+    state.masterModifierSourcesCache = [];
+    state.masterModifierSourcesCharacterId = null;
+    state.masterModifierSourceEditId = null;
+  }
   renderMasterCharacterLockControls();
   await Promise.all([loadEvents("master", true), loadChatMessages("master", true)]);
   return result;
@@ -3022,6 +3392,525 @@ function renderMasterXpBuyRequestList() {
 
     list.appendChild(item);
   }
+}
+
+function sortModifierSourcesByCreatedAtDesc(sources) {
+  return [...(Array.isArray(sources) ? sources : [])].sort((a, b) => {
+    const aTime = Date.parse(a?.createdAt || 0) || 0;
+    const bTime = Date.parse(b?.createdAt || 0) || 0;
+    if (aTime !== bTime) return bTime - aTime;
+    return String(a?.id || "").localeCompare(String(b?.id || ""));
+  });
+}
+
+function humanizeIdLabel(value) {
+  return String(value || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-_.:]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function masterCombatTargetOptions() {
+  return PLAYER_COMBAT_FIELDS.map((fieldId) => ({
+    value: `combat.${fieldId}`,
+    label: `Combat: ${humanizeIdLabel(fieldId.replace(/^combat/, "")) || humanizeIdLabel(fieldId)}`
+  }));
+}
+
+function masterStatTargetOptions() {
+  return PLAYER_STAT_GROUPS.flatMap((group) =>
+    group.fields.map((field) => ({
+      value: `stats.${group.id}.${field.id}`,
+      label: `Stat (${humanizeIdLabel(group.label)}): ${field.label}`
+    }))
+  );
+}
+
+function masterSkillTargetOptions() {
+  return PLAYER_SKILL_FIELDS.map((field) => ({
+    value: `skills.${field.id}`,
+    label: `Skill: ${field.label} (${field.abbr})`
+  }));
+}
+
+function masterPowerLabelMap() {
+  const map = new Map();
+  for (const tier of state.playerPowerCatalog?.tiers || []) {
+    const tierId = String(tier?.id || "").trim();
+    for (const power of tier?.powers || []) {
+      const powerId = String(power?.id || "").trim();
+      if (!tierId || !powerId) continue;
+      const linkedStat = String(power.linkedStatId || "").trim();
+      const linkedStatLabel = linkedStat
+        ? PLAYER_POWER_LINKED_STAT_LABELS[linkedStat.toLowerCase()] ||
+          linkedStat.toUpperCase()
+        : "";
+      const suffix = linkedStatLabel ? ` (${linkedStatLabel})` : "";
+      map.set(
+        `powers.${tierId}.${powerId}`,
+        `Power ${tierId.toUpperCase()}: ${String(power.label || humanizeIdLabel(powerId))}${suffix}`
+      );
+    }
+  }
+  return map;
+}
+
+function masterPowerTargetOptions(character) {
+  const powerLabelByTarget = masterPowerLabelMap();
+  const options = [];
+  const tiers = character?.numericTriples?.powers || character?.progression?.powers || {};
+  for (const [tierId, powers] of Object.entries(tiers || {})) {
+    for (const powerId of Object.keys(powers || {})) {
+      const value = `powers.${tierId}.${powerId}`;
+      options.push({
+        value,
+        label: powerLabelByTarget.get(value) || `Power ${String(tierId).toUpperCase()}: ${humanizeIdLabel(powerId)}`
+      });
+    }
+  }
+  options.sort((a, b) => a.label.localeCompare(b.label));
+  return options;
+}
+
+function masterModifierTargetOptionsForCharacter(character) {
+  return [
+    ...masterCombatTargetOptions(),
+    ...masterStatTargetOptions(),
+    ...masterSkillTargetOptions(),
+    ...masterPowerTargetOptions(character)
+  ];
+}
+
+function replaceMasterCharacterCacheEntry(updatedCharacter) {
+  if (!updatedCharacter?.id) {
+    return;
+  }
+  state.masterCharactersCache = state.masterCharactersCache.map((entry) =>
+    entry.id === updatedCharacter.id ? updatedCharacter : entry
+  );
+}
+
+function selectedMasterModifierSources() {
+  const selected = selectedMasterCharacter();
+  if (!selected) {
+    return [];
+  }
+  if (state.masterModifierSourcesCharacterId !== selected.id) {
+    return [];
+  }
+  return Array.isArray(state.masterModifierSourcesCache)
+    ? state.masterModifierSourcesCache
+    : [];
+}
+
+function findMasterModifierSourceById(sourceId) {
+  return (
+    selectedMasterModifierSources().find(
+      (entry) => entry?.id === String(sourceId || "")
+    ) || null
+  );
+}
+
+function resetMasterModifierSourceForm({ preserveTarget = false } = {}) {
+  state.masterModifierSourceEditId = null;
+  const form = el("master-modifier-source-form");
+  const saveButton = el("master-modifier-source-save");
+  const cancelButton = el("master-modifier-source-cancel");
+  const labelInput = el("master-modifier-source-label");
+  const kindSelect = el("master-modifier-source-kind");
+  const targetSelect = el("master-modifier-source-target");
+  const amountInput = el("master-modifier-source-amount");
+
+  if (form instanceof HTMLFormElement) {
+    form.reset();
+  }
+  if (kindSelect instanceof HTMLSelectElement) {
+    kindSelect.value = "buff";
+  }
+  if (!preserveTarget && targetSelect instanceof HTMLSelectElement && targetSelect.options.length > 0) {
+    targetSelect.value = "";
+  }
+  if (labelInput instanceof HTMLInputElement) {
+    labelInput.placeholder = "Source label (e.g. Magic Buff)";
+  }
+  if (amountInput instanceof HTMLInputElement) {
+    amountInput.value = "";
+  }
+  if (saveButton instanceof HTMLButtonElement) {
+    saveButton.textContent = "Add Modifier Source";
+  }
+  if (cancelButton instanceof HTMLButtonElement) {
+    cancelButton.classList.add("hidden");
+  }
+}
+
+function beginMasterModifierSourceEdit(sourceId) {
+  const source = findMasterModifierSourceById(sourceId);
+  if (!source) {
+    setStatus("Modifier source not found.");
+    return;
+  }
+  if ((source.modifiers || []).length > 1) {
+    setStatus(
+      "This modifier source has multiple targets and cannot be edited in the single-target form yet. Use toggle/delete."
+    );
+    return;
+  }
+  const labelInput = el("master-modifier-source-label");
+  const kindSelect = el("master-modifier-source-kind");
+  const targetSelect = el("master-modifier-source-target");
+  const amountInput = el("master-modifier-source-amount");
+  const saveButton = el("master-modifier-source-save");
+  const cancelButton = el("master-modifier-source-cancel");
+  const firstModifier = Array.isArray(source.modifiers) ? source.modifiers[0] : null;
+
+  if (!(labelInput instanceof HTMLInputElement) ||
+      !(kindSelect instanceof HTMLSelectElement) ||
+      !(targetSelect instanceof HTMLSelectElement) ||
+      !(amountInput instanceof HTMLInputElement)) {
+    return;
+  }
+
+  state.masterModifierSourceEditId = source.id;
+  labelInput.value = String(source.label || "");
+  kindSelect.value = String(source.kind || "manual-gm");
+  targetSelect.value = String(firstModifier?.targetFieldId || "");
+  amountInput.value =
+    Number.isInteger(Number(firstModifier?.amount)) ? String(Number(firstModifier.amount)) : "";
+  if (saveButton instanceof HTMLButtonElement) {
+    saveButton.textContent = "Update Modifier Source";
+  }
+  if (cancelButton instanceof HTMLButtonElement) {
+    cancelButton.classList.remove("hidden");
+  }
+}
+
+function renderMasterModifierSourceControls() {
+  const selected = selectedMasterCharacter();
+  const stateNode = el("master-modifier-source-state");
+  const list = el("master-modifier-source-list");
+  const form = el("master-modifier-source-form");
+  const loadButton = el("master-load-modifier-sources");
+  const saveButton = el("master-modifier-source-save");
+  const cancelButton = el("master-modifier-source-cancel");
+  const labelInput = el("master-modifier-source-label");
+  const kindSelect = el("master-modifier-source-kind");
+  const targetSelect = el("master-modifier-source-target");
+  const amountInput = el("master-modifier-source-amount");
+
+  if (!stateNode || !list || !form || !targetSelect) {
+    return;
+  }
+
+  if (!selected) {
+    state.masterModifierSourceEditId = null;
+    state.masterModifierSourcesCharacterId = null;
+    state.masterModifierSourcesCache = [];
+    stateNode.textContent = "Load characters and select one to manage modifier sources.";
+    list.innerHTML = "";
+    targetSelect.innerHTML = '<option value="">target field</option>';
+    for (const node of [labelInput, kindSelect, targetSelect, amountInput, loadButton, saveButton]) {
+      if (
+        node instanceof HTMLInputElement ||
+        node instanceof HTMLSelectElement ||
+        node instanceof HTMLButtonElement
+      ) {
+        node.disabled = true;
+      }
+    }
+    if (cancelButton instanceof HTMLButtonElement) {
+      cancelButton.disabled = true;
+      cancelButton.classList.add("hidden");
+    }
+    return;
+  }
+
+  if (
+    state.masterModifierSourcesCharacterId !== selected.id ||
+    !Array.isArray(state.masterModifierSourcesCache)
+  ) {
+    state.masterModifierSourcesCharacterId = selected.id;
+    state.masterModifierSourcesCache = sortModifierSourcesByCreatedAtDesc(
+      selected.modifierSources || []
+    );
+    state.masterModifierSourceEditId = null;
+  }
+
+  const formTargetValue = String(targetSelect.value || "");
+  const editSource = state.masterModifierSourceEditId
+    ? findMasterModifierSourceById(state.masterModifierSourceEditId)
+    : null;
+  const selectedTargetForRender =
+    String(editSource?.modifiers?.[0]?.targetFieldId || formTargetValue || "").trim();
+
+  targetSelect.innerHTML = '<option value="">target field</option>';
+  for (const optionData of masterModifierTargetOptionsForCharacter(selected)) {
+    const option = document.createElement("option");
+    option.value = optionData.value;
+    option.textContent = optionData.label;
+    targetSelect.appendChild(option);
+  }
+  if (selectedTargetForRender) {
+    const hasOption = Array.from(targetSelect.options).some(
+      (entry) => entry.value === selectedTargetForRender
+    );
+    if (!hasOption) {
+      const option = document.createElement("option");
+      option.value = selectedTargetForRender;
+      option.textContent = `${selectedTargetForRender} (existing)`;
+      targetSelect.appendChild(option);
+    }
+    targetSelect.value = selectedTargetForRender;
+  }
+
+  for (const node of [labelInput, kindSelect, targetSelect, amountInput, loadButton, saveButton]) {
+    if (
+      node instanceof HTMLInputElement ||
+      node instanceof HTMLSelectElement ||
+      node instanceof HTMLButtonElement
+    ) {
+      node.disabled = false;
+    }
+  }
+  if (cancelButton instanceof HTMLButtonElement) {
+    cancelButton.disabled = !state.masterModifierSourceEditId;
+    cancelButton.classList.toggle("hidden", !state.masterModifierSourceEditId);
+  }
+  if (saveButton instanceof HTMLButtonElement) {
+    saveButton.textContent = state.masterModifierSourceEditId
+      ? "Update Modifier Source"
+      : "Add Modifier Source";
+  }
+
+  const sources = selectedMasterModifierSources();
+  const activeCount = sources.filter((entry) => entry?.active !== false).length;
+  const owner = selected.userId === state.user?.id ? "you" : selected.userId;
+  stateNode.textContent = `Selected: ${selected.name || selected.id} | Owner: ${owner} | ${activeCount}/${sources.length} active`;
+
+  list.innerHTML = "";
+  if (sources.length < 1) {
+    const item = document.createElement("li");
+    item.className = "muted";
+    item.textContent = "No modifier sources for selected character.";
+    list.appendChild(item);
+    return;
+  }
+
+  for (const source of sources) {
+    const item = document.createElement("li");
+    item.className = `master-modifier-source-item${
+      source.active === false ? " is-inactive" : ""
+    }`;
+
+    const header = document.createElement("div");
+    header.className = "master-modifier-source-header";
+    header.textContent = `${String(source.label || "Modifier Source")} | ${String(
+      source.kind || "manual"
+    )} | ${source.active === false ? "inactive" : "active"}`;
+
+    const modifiersSummary = Array.isArray(source.modifiers)
+      ? source.modifiers
+          .map((modifier) => {
+            const amount = Number(modifier?.amount || 0) || 0;
+            const sign = amount >= 0 ? "+" : "";
+            return `${sign}${amount} -> ${String(modifier?.targetFieldId || "unknown")}`;
+          })
+          .join(" | ")
+      : "No modifiers";
+    const detail = document.createElement("div");
+    detail.className = "muted";
+    detail.textContent = modifiersSummary;
+
+    const meta = document.createElement("div");
+    meta.className = "muted";
+    meta.textContent = `Created: ${formatDate(source.createdAt)}${
+      source.updatedAt ? ` | Updated: ${formatDate(source.updatedAt)}` : ""
+    }`;
+
+    const actions = document.createElement("div");
+    actions.className = "row master-modifier-source-actions";
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "ghost";
+    editButton.textContent = "Edit";
+    editButton.dataset.masterModifierAction = "edit";
+    editButton.dataset.masterModifierId = source.id;
+    if ((source.modifiers || []).length > 1) {
+      editButton.disabled = true;
+      editButton.title = "Multi-target sources are not editable in this form yet.";
+    }
+
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.className = "ghost";
+    toggleButton.textContent = source.active === false ? "Enable" : "Disable";
+    toggleButton.dataset.masterModifierAction = "toggle";
+    toggleButton.dataset.masterModifierId = source.id;
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "ghost";
+    deleteButton.textContent = "Delete";
+    deleteButton.dataset.masterModifierAction = "delete";
+    deleteButton.dataset.masterModifierId = source.id;
+
+    actions.appendChild(editButton);
+    actions.appendChild(toggleButton);
+    actions.appendChild(deleteButton);
+
+    item.appendChild(header);
+    item.appendChild(detail);
+    item.appendChild(meta);
+    item.appendChild(actions);
+    list.appendChild(item);
+  }
+}
+
+async function loadMasterModifierSources(silent = false) {
+  const campaignId = currentCampaignId("master");
+  const character = selectedMasterCharacter();
+  if (!character) {
+    throw new Error("Select a character first.");
+  }
+  const result = await api(
+    `/api/v1/campaigns/${campaignId}/characters/${character.id}/modifier-sources`
+  );
+  state.masterModifierSourcesCache = sortModifierSourcesByCreatedAtDesc(
+    result.modifierSources || []
+  );
+  state.masterModifierSourcesCharacterId = character.id;
+  if (result.character?.id) {
+    replaceMasterCharacterCacheEntry(result.character);
+  }
+  renderMasterCharacterLockControls();
+  if (!silent) {
+    setStatus("Modifier sources loaded.");
+  }
+  return state.masterModifierSourcesCache;
+}
+
+async function saveMasterModifierSourceFromForm() {
+  const campaignId = currentCampaignId("master");
+  const character = selectedMasterCharacter();
+  if (!character) {
+    throw new Error("Select a character first.");
+  }
+  const labelInput = el("master-modifier-source-label");
+  const kindSelect = el("master-modifier-source-kind");
+  const targetSelect = el("master-modifier-source-target");
+  const amountInput = el("master-modifier-source-amount");
+  if (
+    !(labelInput instanceof HTMLInputElement) ||
+    !(kindSelect instanceof HTMLSelectElement) ||
+    !(targetSelect instanceof HTMLSelectElement) ||
+    !(amountInput instanceof HTMLInputElement)
+  ) {
+    throw new Error("Modifier source form is not available.");
+  }
+
+  const label = String(labelInput.value || "").trim();
+  const kind = String(kindSelect.value || "").trim();
+  const targetFieldId = String(targetSelect.value || "").trim();
+  const amount = Number(amountInput.value);
+
+  if (!label) {
+    throw new Error("Modifier source label is required.");
+  }
+  if (!targetFieldId) {
+    throw new Error("Select a target field.");
+  }
+  if (!Number.isInteger(amount) || amount === 0) {
+    throw new Error("Modifier amount must be a non-zero integer.");
+  }
+
+  const body = {
+    label,
+    kind,
+    modifiers: [{ targetFieldId, amount }]
+  };
+
+  const editingId = state.masterModifierSourceEditId;
+  const path = editingId
+    ? `/api/v1/campaigns/${campaignId}/characters/${character.id}/modifier-sources/${editingId}`
+    : `/api/v1/campaigns/${campaignId}/characters/${character.id}/modifier-sources`;
+  const method = editingId ? "PUT" : "POST";
+  const result = await api(path, {
+    method,
+    body: JSON.stringify(body)
+  });
+
+  state.masterModifierSourcesCache = sortModifierSourcesByCreatedAtDesc(
+    result.modifierSources || []
+  );
+  state.masterModifierSourcesCharacterId = character.id;
+  if (result.character?.id) {
+    replaceMasterCharacterCacheEntry(result.character);
+  }
+  resetMasterModifierSourceForm();
+  renderMasterCharacterLockControls();
+  await loadEvents("master", true);
+  return result;
+}
+
+async function toggleMasterModifierSource(sourceId) {
+  const campaignId = currentCampaignId("master");
+  const character = selectedMasterCharacter();
+  if (!character) {
+    throw new Error("Select a character first.");
+  }
+  const result = await api(
+    `/api/v1/campaigns/${campaignId}/characters/${character.id}/modifier-sources/${sourceId}/toggle`,
+    {
+      method: "POST",
+      body: JSON.stringify({})
+    }
+  );
+  state.masterModifierSourcesCache = sortModifierSourcesByCreatedAtDesc(
+    result.modifierSources || []
+  );
+  state.masterModifierSourcesCharacterId = character.id;
+  if (result.character?.id) {
+    replaceMasterCharacterCacheEntry(result.character);
+  }
+  renderMasterCharacterLockControls();
+  await loadEvents("master", true);
+  return result;
+}
+
+async function deleteMasterModifierSource(sourceId) {
+  const campaignId = currentCampaignId("master");
+  const character = selectedMasterCharacter();
+  if (!character) {
+    throw new Error("Select a character first.");
+  }
+  const source = findMasterModifierSourceById(sourceId);
+  const label = String(source?.label || sourceId);
+  const confirmed = window.confirm(`Delete modifier source "${label}"?`);
+  if (!confirmed) {
+    return { cancelled: true };
+  }
+  const result = await api(
+    `/api/v1/campaigns/${campaignId}/characters/${character.id}/modifier-sources/${sourceId}`,
+    {
+      method: "DELETE"
+    }
+  );
+  state.masterModifierSourcesCache = sortModifierSourcesByCreatedAtDesc(
+    result.modifierSources || []
+  );
+  state.masterModifierSourcesCharacterId = character.id;
+  if (result.character?.id) {
+    replaceMasterCharacterCacheEntry(result.character);
+  }
+  if (state.masterModifierSourceEditId === sourceId) {
+    resetMasterModifierSourceForm();
+  }
+  renderMasterCharacterLockControls();
+  await loadEvents("master", true);
+  return result;
 }
 
 async function loadMasterXpBuyRequests(silent = false) {
@@ -3497,6 +4386,25 @@ function attachPlayerHandlers() {
     }
   });
 
+  el("player-powers-triplet-table")?.addEventListener("click", (event) => {
+    const button = event.target?.closest?.("[data-power-draft-delta]");
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    event.preventDefault();
+    try {
+      const tierId = String(button.dataset.powerTierId || "").trim();
+      const powerId = String(button.dataset.powerId || "").trim();
+      const delta = Number(button.dataset.powerDraftDelta || 0);
+      if (!tierId || !powerId || !Number.isFinite(delta) || delta === 0) {
+        return;
+      }
+      stagePlayerPowerFieldChange(tierId, powerId, delta);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
   el("player-submit-xp-buy-request")?.addEventListener("click", async () => {
     try {
       const actions = buildPlayerXpBuyRequestActionsFromDraft();
@@ -3901,6 +4809,74 @@ function attachMasterHandlers() {
       await loadMasterXpBuyRequests();
     } catch (error) {
       setStatus(error.message);
+    }
+  });
+
+  el("master-load-modifier-sources")?.addEventListener("click", async () => {
+    try {
+      await loadMasterModifierSources();
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-modifier-source-cancel")?.addEventListener("click", () => {
+    resetMasterModifierSourceForm();
+    renderMasterModifierSourceControls();
+    setStatus("Modifier source edit cancelled.");
+  });
+
+  el("master-modifier-source-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const wasEditing = Boolean(state.masterModifierSourceEditId);
+      const result = await saveMasterModifierSourceFromForm();
+      setStatus(
+        wasEditing
+          ? "Modifier source updated."
+          : "Modifier source created.",
+        result.modifierSource || result
+      );
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+
+  el("master-modifier-source-list")?.addEventListener("click", async (event) => {
+    const button = event.target?.closest?.("[data-master-modifier-action]");
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const sourceId = String(button.dataset.masterModifierId || "").trim();
+    const action = String(button.dataset.masterModifierAction || "").trim();
+    if (!sourceId || !action) {
+      return;
+    }
+    try {
+      if (action === "edit") {
+        beginMasterModifierSourceEdit(sourceId);
+        renderMasterModifierSourceControls();
+        setStatus("Modifier source loaded into edit form.");
+        return;
+      }
+      button.disabled = true;
+      if (action === "toggle") {
+        const result = await toggleMasterModifierSource(sourceId);
+        setStatus("Modifier source toggled.", result.modifierSource || result);
+        return;
+      }
+      if (action === "delete") {
+        const result = await deleteMasterModifierSource(sourceId);
+        if (result?.cancelled) {
+          setStatus("Modifier source delete cancelled.");
+          return;
+        }
+        setStatus("Modifier source deleted.", { deletedSourceId: result.deletedSourceId });
+      }
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      button.disabled = false;
     }
   });
 

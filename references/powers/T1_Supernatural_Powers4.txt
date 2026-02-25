@@ -1,0 +1,85 @@
+﻿T1 Supernatural Powers
+
+
+Awareness: (Per)
+1. You add your awareness level to your alertness skill checks. You also can identify stats / skills of simple (non-supernatural, non-hunter humans, very weak mobs etc ...) NPC’s. You can identify common, uncommon, masterwork items. Identifying items costs no mana, yet identifying creatures costs 1 mana.
+2. You increase your identify power (RNnters, stronger mobs etc..., ). You can also know their special or supernatural skills if there are any, and possible loot. You can now identify epic (or lesser) items.
+3. Techno infused invisibility devices do not work on you. You get the cantrip bonus.
+   * Cantrip: You gain +1 inspiration / game session, yet they do not stack (Inspiration = reroll). If the person has an uninspired flaw, they need to get rid off from their uninspired status first and the cantrip speeds up that process.
+4. You increase your identify power (Rank C, B rank hunters, stronger mobs etc...). Can identify legendary (or lesser) items.
+5. You can now identify all living, not-living, non-living NPC’s (except for supreme beings).
+Note: All identifications are bonus action. Informing other players / NPCs in your party will cost to your standard or move action.
+
+
+Body Reinforcement (BR): (Stam)
+1. You can increase one of your physical stats by 1 (str, dex, stam [increasing your stamina will not change your max mana]) Effect lasts for 10 minutes or 1 portal duration, which is longer. One physical stat can be increased only once, but multiple physical stats can be increased with additional casting. This requires standard action. Mana cost: 2
+2. Now you can use this skill on other people by touching them. You can also use the cantrip now.
+   * Cantrip: If you become incapacitated (HP =<0 (up to -5), you automatically stand up with 1 HP after a turn) Usable only 1 time / day.  (stand up with 4 HP, if your skill = 5 dots
+3. You can now increase a physical stat by 2, (str, dex, stam) if you use 3 mana, instead of 2.
+4. People under the effect of this power also gain some physical protection (1 DR) (Stacks with armor or other protection items, bonus from other supernatural skills) Outside portals, the effect lasts 30 min, instead of 10 minutes now.
+5. You can now increase a physical stat by 3 (str, dex, stam) if you use 4 mana, instead of 3 or 2. Physical protection bonus is increased (2 DR). The effect lasts for 8 hours instead of 30 minutes now. BR cantrip is stronger now.
+
+
+Crowd Control (CC): (Cha)
+If you fail to control a creature (or after the control, if they are still alive), they will know you did something to them and you might be 1st on their aggro list.
+1. You can paralyze a living target, if their (Wits + Cha)xd10 success < your (Cha + Int) x d10 success. (Mana cost: 1 / if successful) While they are paralyzed/controlled, if they take damage from anything, the spell breaks and they can not be controlled for 1 day. This requires standard action. If they are controlled once, you can maintain the effect with (Mana cost: 1 /turn). Range is standard = 25m. 
+2. Your controlled target now can be compelled to do simple acts (they do not hurt themselves). Ordering them costs bonus action. Mana cost: 1 / turn. If controlled targets take damage from anything, the spell is broken. Cantrip is activated now.
+   * Cantrip: You gain +1 bonus to your social and intimidation dice pools. If your skill is 5, you also get +1 bonus to your mechanical and technological dice pools
+3. You can control 2 living targets at once and in one turn, if they are in range. You can still not command them to hurt themselves. Ordering both of them take 1 bonus action. If they take damage, except from you, the spell does not break now. Mana cost: 1 / target / turn (eg: 2 mana / turn for 2 targets)
+4. Controlling targets are now bonus action instead of standard action. Compelling / giving orders to them are now instant and free (Does not cost bonus action). The spell would not break anymore regardless of the source of damage.
+5. You can control 3 mobs at once. This skill can now be used against non-living targets (except summoned ones by another occult skill). Mana cost: up to 3 / turn (still 1/ turn if used against 1 target)
+
+
+Elementalist: (Int)
+1. Elemental Bolt (EB): A single elemental attack that damages one target directly. Damage = Int+1, range is standard (about up to 25 meters), mana cost=1. Requires standard action to cast. You choose an element for your attacks and stick to that element until long rest.
+2. Your EB damage is increased by 1 (Damage=Int+2). Now, you can use your EB on two targets in range by dividing your damage on them: Each target will get ([Int+2] / 2; round up) mana cost=1. Requires standard action to cast. You choose an element for your attacks and stick to that element until long rest. Range is standard 25 m. You also gain your cantrip.
+   * Cantrip: It does not spend mana and its damage will be equal to your Int. It also requires standard action to cast.
+3. Damage is further increased by 1. Damage=Int+3. You can change your EB damage type from fire, cold, lightning, acid at will. Creatures that are vulnerable to an element take 1.5 x damage (round up). Mana cost=1. Requires standard action to cast. Range is standard. From now on, if you decide to use your EB on multiple targets, you can increase your divided EB damage +2/per mana (up to undivided EB damage).
+4. Damage is further increased by 1. Damage=Int+4.  Total damage/2 (round up) can be applied to 3 different targets in range, now.  Mana cost=1. Requires standard action to cast. Range is standard.
+   * Cantrip: Your Cantrip Damage is further increased by 1. Damage=Int+1. Now you can use your cantrip in your bonus action, if you have not cast any other harming spell during this turn.
+5. Damage is further increased by 1. Damage=Int+5. You can now use necrotic damage type. All living creatures are vulnerable (x1.5 damage) to necrotic damage type. Total damage/2 (round up) can be divided to 4 different targets in range. The mana cost of necrotic damage type is 2, other elements still have 1 mana cost. Requires standard action to cast. Range is standard. 
+   * Cantrip: Total cantrip damage/2 (round up) can be divided  to 2 different targets in range. You can not use necrotic damage type as cantrip.
+
+
+Healing: (Int)
+1. Heals a target for (int+1) amount, also removes bleeding effect. Mana cost: 2 You need to touch the target to heal. Requires standard action to cast.
+2. Your healing becomes (int+2). There is no need to touch the target now. Can spread the total healing amount to heal friendly targets around (up to 4 people) if they are in standard range (25 m). Mana cost: 2
+3. Your healing becomes (int+3). Can cure poison / disease / curse. You need to touch the target. Mana cost: 3 Now you can use the healing cantrip.
+   * Cantrip: A simple wound mending spell. You can heal them by 2 HP / stop bleeding. (4 HP, if your skill is 5 dots). A single target can not be mendable like this for more than 2 times / day) Cantrip does not require mana.
+4. Your healing becomes (int+4). You can also regrow their missing limbs. You no longer need to touch to cure ailments (poison / disease / curse) while they are in ranged (standard)
+   * Cantrip: The healing cantrip is stronger now. You can heal 3 HP.
+5. Your healing becomes (int+5). For a single time (once / character / day), the healing amount can exceed their max health (limited up to target’s stamina).
+   * Cantrip: The healing cantrip is stronger now. You can heal 4 HP.
+
+
+Light Support (LS): (App)
+1. You create a light source on yourself, allowing everyone to see clearly in dark (up to 50 m). While neutral / friendly / allied targets are in your light’s range (50m), they gain +2 hit bonus (+2d10)  to their melee and ranged attack dice. Effect lasts for 10 minutes or 1 portal duration, which is longer. This requires standard action. Mana cost: 2  The cantrip is activated.
+   * Cantrip: You gain nightvision and +1 mana bonus.
+2. Even if you have a light source summoned, hostile targets can not see it, thus can not detect you because of your light. Your light source gains +1 Damage Reduction (DR) bonus. Your light source bonuses become +2 hit bonus (+2d10), and +1 DR. The effect lasts for 30 minutes outside of a portal.
+3. Your light source gains +1 Soak bonus. Your light source bonuses become +3 hit bonus (+3d10), +1 DR, and +1 Soak. The effect lasts for 1 hour outside of a portal.
+   * Cantrip: You gain nightvision and +2 mana bonus.
+4. Your light source bonuses become +3 hit bonus (+3d10), +2 DR, and +1 Soak. Your light has a wider range now (up to 100 meters). Once a long rest, or once in a portal, you can restore a human target’s mana - including yourself (Max restoration = 2x of your appearance stat). The effect lasts for 3 hours outside of a portal.
+5. Your light source bonuses become +4 hit bonus (+4d10), +2 DR, and +2 Soak. Your light source can last for 8 hours, if used outside a portal. Expose darkness: You focus your light to make darkness based evil creatures in your light’s range, like shades and undead with physical or elemental immunity, lose their immunity and become resistant to those kinds of damage instead (from resistance level 2 to resistance level 1). Those kinds of creatures with physical and elemental resistances, will lose their resistance status (from resistance level 1 to resistance level 0). This is a standard action. This power costs no mana, but you need to concentrate to keep it active (that concentration requires your bonus actions).
+   * Cantrip: You gain nightvision and +3 mana bonus.
+
+
+Necromancy: (App)
+1. You create one simple skeleton to fight at your side till it dies (again) or a portal duration (10 minutes outside portals). Its melee skill is 3. Its Str, Dex and Stam is equal to 1+(1/2 of your App) (round up). They have a 1 handed melee weapon (Att=Dex+Melee = Dex+3, Dmg = Str +2), can not use any other weapons, armor or accessory. They have natural DR=3. All summons use your initiative (acts just after you). Its mental stats (Int, Per, Wits) are 0 . Summoning it is a standard action. Mana cost: 2  (Skeletons do not get benefit from single and group buffs, can not be healed). Only 1 skeleton can be active at one time.
+2. You can create 2 simple skeletons, or 1 skeleton king (SK) with a 2 handed sword. SK will have melee skill level 4. Its Str, Dex and Stam will be equal to 2+(1/2 of your App) (round up). The sword of the SK will have +1 hit and +1 damage bonuses (Att=Dex+Melee+1 = Dex+4, Dmg = Str+6+1) and cannot use any other weapon, armor or accessory.They have natural DR=5, as well as resistance to shadow, cold and lightning. Mana cost: 3  (Skeletons do not get benefit from single and group buffs, can not be healed). You get the cantrip bonus now.
+   * Cantrip: You will be the last on a hostile undead’s aggro list. If you have 5 dots necromancy, they will not attack you, unless you attack first. You gain +1 bonus to your melee skill. This bonus increases +1 every other level in your necromancy level thereafter.
+3. You can make a ranged touch attack (necrotic touch) to a target (25 meter) and they take necrotic damage (x1,5 damage to living - round up). The damage is equal to your App + Necromancy Level (Soakable with Sta), In addition to the damage, this attack will heal you by your Necromancy Level. You can get healed regardless of the damage given, even if it is 0). Necrotic touch will heal all (friendly or foe) types of undead creatures/summonings (opposed to x1.5 damage, it heals only x1). Necrotic touch does not work on shadow/incorporeal creatures. This is a standard action. Mana cost: 3
+4. Now, out of portal, your undead can last for 60 minutes instead. They also benefit from your Necromancy level: add half of your Necromancy level to your undead’s attacks and damage rolls (4/2 = +2 bonus both to attacks and damages). You can create a zombie, instead of skeleton(s) (You can not have both zombie and skeleton(s) on the field, it has to be either of them). The zombie will have melee skill level 4. Its Str, Dex and Stam will be equal to your App. The zombie can make two brawl attacks (Dex+Melee+2) and damage (Str+2) and cannot use any other weapon, armor or accessory. They have natural DR=5, as well as resistance to shadow, cold and lightning. Unlike Skeletons, zombies can get group buffs, yet they still cannot be healed. Mana cost: 4
+5. The bonus to your undead summons will be equal to your necromancy level. Also, their melee skill level is equal to 5, now. Your necrotic touch damage  is now App + [2 x necro level]. You can resurrect a recently fallen human (Up to 1 hour). Mana cost: 6
+Note: All summoned creatures appear next to you, you can not choose their summoning location. All summons cancel your stealth / invisible effect.
+
+
+Shadow Control (SC): (Man)
+1. You create a cloak of shadow (CoS) around you for 10 minute / 1 portal duration. CoS will give you intimidation, stealth skills (equal to your SC level) and +1 AC. Using this is a standard action. Mana cost: 2
+2. Shadow Walk: Allows you to dive in your shadow and appear near the shadow of a living target. Max range of this shadow walk is  equal to (25m x SC rank) Mana cost: 2. 
+This can be used both as a bonus or standard action.
+3. Your CoS AC bonus increases to +2.
+Shadow Manupulation: You manipulate a target’s own shadow to  attack them (and only that target). Attack will always be considered as success (no additional bonus to damage). The damage of this attack will be your (Man+SC). This is a shadow type damage (soakable with Stam). Range = 25 meters. This is a standard action. Manipulating shadow is also considered as an attack, and cancels your stealth / invisible or similar effects. Mana cost: 2. You can now use SC cantrip.
+   * Cantrip: You can do cosmetic changes on your clothes / armor [They are just cosmetic and do not change their stats]. When your SC level reaches 5, you can make minor cosmetic appearance modifications on your body (hair color, eye color, skin color etc).
+4. Your CoS AC bonus is now applicable to all or selected allies in (25 meters) range of yours. Mana cost: 2 if self only; 4 if shared with allies. Outside portals, CoS now lasts for 60 minutes.
+5. Your CoS AC bonus increases to +3.
+Shadow Soldier (SS): You create a semi-shadow soldier with a 2 handed sword with +2 hit and +2 damage. It can not use any other items or weapons. It will have melee skill level 5 and physical stats Str, Dex, Stam equal to (3 + Man). SS can gain benefit from all group and single buffs, but can not be healed. It will have natural DR=6, shadow and cold immunity, physical resistance, radiant vulnerability. Its damage type can be changeable to physical or shadow (at will). Creating a SS is a standard action. You can not have more than 1 SS  active. Mana cost: 4 This is also considered as an attack, and cancels your stealth / invisible or similar effects. You can summon SS only near yourself and can not choose its summoning location.

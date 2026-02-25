@@ -117,6 +117,9 @@ export class JsonStore {
       if (!character.numericBonuses || typeof character.numericBonuses !== "object") {
         character.numericBonuses = {};
       }
+      if (!Array.isArray(character.modifierSources)) {
+        character.modifierSources = [];
+      }
     }
 
     for (const event of this.data.sessionEvents) {

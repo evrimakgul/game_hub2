@@ -303,6 +303,37 @@ pre {
   font-size: 13px;
 }
 
+#master-modifier-source-list {
+  display: grid;
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.master-modifier-source-item {
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+  display: grid;
+  gap: 4px;
+}
+
+.master-modifier-source-item.is-inactive {
+  opacity: 0.75;
+  background: #fafbfd;
+}
+
+.master-modifier-source-header {
+  font-weight: 600;
+  color: #23445b;
+  font-size: 13px;
+}
+
+.master-modifier-source-actions {
+  margin-top: 2px;
+}
+
 .triplet-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -437,6 +468,61 @@ pre {
   text-align: center;
 }
 
+.power-triplet-list {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.power-triplet-tier {
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fbfdff;
+  display: grid;
+  gap: 8px;
+}
+
+.power-triplet-tier-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #23445b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.power-triplet-row {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d8e3ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.power-triplet-row-header {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.power-triplet-name {
+  font-weight: 600;
+  color: #1d3346;
+}
+
+.power-triplet-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.power-triplet-helper {
+  font-size: 12px;
+  color: #3c556b;
+  line-height: 1.35;
+}
+
 #status {
   margin-top: 8px;
 }
@@ -466,6 +552,10 @@ pre {
   .triplet-current-input,
   .triplet-bonus-input {
     height: 40px;
+  }
+
+  .power-triplet-row-header {
+    gap: 6px;
   }
 }
 

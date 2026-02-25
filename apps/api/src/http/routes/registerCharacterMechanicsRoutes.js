@@ -2,6 +2,7 @@ import { asyncHandler } from "../asyncHandler.js";
 import { CharacterCatalogController } from "../controllers/CharacterCatalogController.js";
 import { CharacterController } from "../controllers/CharacterController.js";
 import { MechanicsController } from "../controllers/MechanicsController.js";
+import { ModifierSourceController } from "../controllers/ModifierSourceController.js";
 import { SectionLockController } from "../controllers/SectionLockController.js";
 import { XpBuyRequestController } from "../controllers/XpBuyRequestController.js";
 import { XpCorrectionController } from "../controllers/XpCorrectionController.js";
@@ -15,6 +16,7 @@ import { createDefaultRulesetRegistry } from "../../rulesets/index.js";
 import { CharacterCatalogService } from "../../services/characters/CharacterCatalogService.js";
 import { CharacterMechanicsSupport } from "../../services/characters/CharacterMechanicsSupport.js";
 import { CharacterSheetService } from "../../services/characters/CharacterSheetService.js";
+import { ModifierSourceService } from "../../services/characters/ModifierSourceService.js";
 import { SectionLockService } from "../../services/characters/SectionLockService.js";
 import { SessionEventService } from "../../services/events/SessionEventService.js";
 import { DiceRollService } from "../../services/mechanics/DiceRollService.js";
@@ -56,6 +58,12 @@ export function createCharacterMechanicsControllers({ store, realtimeHub }) {
     transactionRunner,
     support,
     sessionEventService
+  });
+  const modifierSourceService = new ModifierSourceService({
+    transactionRunner,
+    support,
+    sessionEventService,
+    createId
   });
   const xpBuyService = new XpBuyService({
     transactionRunner,
@@ -113,6 +121,10 @@ export function createCharacterMechanicsControllers({ store, realtimeHub }) {
     }),
     sectionLockController: new SectionLockController({
       sectionLockService,
+      realtimeHub
+    }),
+    modifierSourceController: new ModifierSourceController({
+      modifierSourceService,
       realtimeHub
     }),
     xpBuyRequestController: new XpBuyRequestController({
@@ -209,6 +221,46 @@ export function registerCharacterMechanicsRoutes({ app, auth, store, realtimeHub
     "/api/v1/campaigns/:campaignId/characters/:characterId/section-locks",
     auth.requireAuth,
     asyncHandler((req, res) => controllers.sectionLockController.setSectionLock(req, res))
+  );
+
+  app.get(
+    "/api/v1/campaigns/:campaignId/characters/:characterId/modifier-sources",
+    auth.requireAuth,
+    asyncHandler((req, res) =>
+      controllers.modifierSourceController.listModifierSources(req, res)
+    )
+  );
+
+  app.post(
+    "/api/v1/campaigns/:campaignId/characters/:characterId/modifier-sources",
+    auth.requireAuth,
+    asyncHandler((req, res) =>
+      controllers.modifierSourceController.createModifierSource(req, res)
+    )
+  );
+
+  app.put(
+    "/api/v1/campaigns/:campaignId/characters/:characterId/modifier-sources/:sourceId",
+    auth.requireAuth,
+    asyncHandler((req, res) =>
+      controllers.modifierSourceController.updateModifierSource(req, res)
+    )
+  );
+
+  app.delete(
+    "/api/v1/campaigns/:campaignId/characters/:characterId/modifier-sources/:sourceId",
+    auth.requireAuth,
+    asyncHandler((req, res) =>
+      controllers.modifierSourceController.deleteModifierSource(req, res)
+    )
+  );
+
+  app.post(
+    "/api/v1/campaigns/:campaignId/characters/:characterId/modifier-sources/:sourceId/toggle",
+    auth.requireAuth,
+    asyncHandler((req, res) =>
+      controllers.modifierSourceController.toggleModifierSource(req, res)
+    )
   );
 
   app.get(
